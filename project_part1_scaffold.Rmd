@@ -1,0 +1,667 @@
+---
+title: "MS&E 226 Project Part 1: Veteran Income Prediction (ACS 2024 1-Year PUMS)"
+author: "Grace Hendricks, Ben Nguyen, & Erick Rodriguez"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(tidymodels)   # rsample, recipes, parsnip, workflows, tune, yardstick
+library(janitor)      # clean_names(), get_dupes()
+library(corrr)        # optional: tidy correlation matrices
+tidymodels_prefer()
+
+GLOBAL_SEED <- 32    # TODO: pick your seed and report it in Section 4
+```
+
+<!--
+=====================================================================
+READ ME FIRST (delete this block before submitting)
+=====================================================================
+1. DATA ACCESS. Download the 2024 ACS 1-year PUMS *person* files from
+   https://www.census.gov/programs-surveys/acs/microdata/access.html
+   (CSV, person records). Large files may be split (psam_pusa.csv,
+   psam_pusb.csv, ...); bind them. Do NOT commit raw data to your zip.
+2. DATA DICTIONARY. Every variable code below (MIL, PINCP, ADJINC, SCHL, ...)
+   should be VERIFIED against the 2024 PUMS data dictionary. Codes and
+   available variables change between years (e.g., check which period-of-
+   service flags MLPA-MLPK / VPS-style variables exist in 2024).
+   https://www2.census.gov/programs-surveys/acs/tech_docs/pums/data_dict/PUMS_Data_Dictionary_2024.pdf
+3. HOLDOUT HYGIENE. After Section 4, the holdout must not appear in your
+   working directory, your environment, or any AI chat/agent context.
+   The scaffold saves it OUTSIDE the project folder -- keep it that way.
+4. Page limit: 5 pages of text + 1 page of figures. Hide most code with
+   echo = FALSE in the final knit; the code goes in your zip instead.
+-->
+
+# 3. Dataset
+
+## 3(a) Loading raw data and defining one row
+Peek at one row of the full person ACS 1-Year PUMS
+```{r}
+pums_files <- c("/Users/gracekemmerenhendricks/Documents/Autumn 26/MS&E226/data/csv_pus/psam_pusa.csv",
+                "/Users/gracekemmerenhendricks/Documents/Autumn 26/MS&E226/data/csv_pus/psam_pusb.csv")
+
+peek <- read_csv(pums_files[1], n_max = 1, show_col_types = FALSE,
+                 col_types = cols(.default = col_character()))
+
+peek
+```
+One row = one person (one PUMS person record), uniquely identified by `SERIALNO` + `SPORDER`.
+
+```{r load-data}
+# OLD SELECTION OF VARS
+# person_vars <- c("RT", "SERIALNO",  "SPORDER", "DIVISION", "REGION", "STATE", "ADJINC",
+#                  "AGEP", "CIT", "DEAR", "DEYE", "MAR", "MIL", "MLPA", "MLPB", "MLPCD", "SEX",
+#                  "SCHL", "DIS", "DRAT", "MSP", "PAOC", "PINCP", "SCIENGRLP",
+#                  "RACAIAN", "RACASN", "RACBLK", "RACSOR", "RACWHT", "RACNH",
+#                  "RACPI", "RAC1P", "VPSP", "PERNP", "PWGTP", "HISP")
+
+# NEW SELECTIONF OF VARS: single race code, using PERNP, not PINCP
+# * SHOULD WE INCLUDE HISP?
+person_vars <- c("RT", "SERIALNO", "ADJINC", "SPORDER", "PWGTP",
+                 "MIL", "VPSP",
+                 "STATE", "AGEP", "SEX", "RAC1P", "MAR", "PAOC",
+                 "CIT", "NATIVITY", "LANX", "ENG", "WAOB",
+                 "DIS", "DRAT", "DRATX", "DEAR", "DEYE", "DPHY", "DREM", "DDRS", "DOUT",
+                 "SCHL", "FOD1P", "SCIENGRLP",
+                 "PERNP")
+
+
+pums_raw <- pums_files |>
+  map(~ read_csv(.x, show_col_types = FALSE,
+                 col_select = all_of(person_vars),
+                 col_types = cols(.default = col_character()))) |>
+  list_rbind()
+
+dim(pums_raw)
+
+```
+
+### Eligibility filters (definitional, NOT data-driven, so safe before the split)
+Veterans who are not currently on active duty or in Reserve/National Guard Status: `MIL` code 2 
+(verified in the data dictionary: 1 = now on active duty, 2 = active duty in the
+past but not now, 3 = only active duty for training in Reserves/National Guard, 4 = never served).
+'VPSP' code 01 
+(verified in the data dictionary: 01 = Gulf War: 9/2001 or later (Post 9/11)).
+Outcome `PINCP` is NA for people under 15, so those rows drop out too.
+```{r filter-veterans}
+vets <- pums_raw |>
+  filter(MIL == "2", VPSP =="01", 
+  !is.na(PERNP))
+```
+
+Convert numeric variables back from characters (from read_csv) and adjust income/earnings variables.
+```{r}
+vets <- vets |>
+  mutate(across(c(AGEP, PERNP), as.numeric),
+         ADJINC = as.numeric(ADJINC) / 1e6,
+         PERNP_adj = PERNP * ADJINC)
+
+glimpse(vets)
+```
+```{r}
+# See example categorical breakdown for possible high proportion missing variables
+vets |> count(SCIENGRLP)
+vets |> count(PAOC)
+```
+Check against criteria (i)-(v):
+```{r criteria-check}
+# (i) rows and predictor count -- you'll finalize predictors in Section 6
+nrow(vets)
+
+# (v) missingness overview across ALL columns (just to see what's usable)
+vets |>
+  summarise(across(everything(), ~ mean(is.na(.x)))) |>
+  pivot_longer(everything(), names_to = "var", values_to = "prop_na") |>
+  filter(prop_na == 0)
+vets |>
+  summarise(across(everything(), ~ mean(is.na(.x)))) |>
+  pivot_longer(everything(), names_to = "var", values_to = "prop_na") |>
+  filter(prop_na > 0) |>
+  arrange(desc(prop_na))
+```
+
+**DONE (3a):** state criteria (i)-(v) are met. Think about (iv) independence:
+multiple veterans can share a household (`SERIALNO`). Is treating rows as
+independent reasonable? Do you want to address it (e.g., one person per
+household), or acknowledge it as a limitation? Either choice should be
+justified. Cite the Census Bureau as source and note PUMS is public-use.
+
+## 3(b) Why this dataset fits the stakeholder
+
+**TODO:** tie the veteran-only sample and available features to what a
+commander knows at the time of a SkillBridge request.
+
+## 3(c) Remove duplicates
+
+```{r dedupe}
+# PUMS should be unique on SERIALNO + SPORDER; verify rather than assume
+vets |> get_dupes(SERIALNO, SPORDER) |> nrow()
+
+n_before <- nrow(vets)
+vets <- vets |> distinct(SERIALNO, SPORDER, .keep_all = TRUE)
+n_after <- nrow(vets)
+c(before = n_before, after = n_after)
+```
+
+**DONE:** confirm in text that duplicates were removed (even if zero found).
+
+# 4. Holdout set
+
+Split BEFORE any exploration or preprocessing. If you decided to keep one
+person per household or to split by household, do that here.
+
+```{r holdout-split}
+set.seed(GLOBAL_SEED)
+
+# Simple random 80/20 split of persons.
+# NOTE: persons in the same household may land on both sides. Consider whether
+# that leaks information (e.g., spouses with correlated incomes) and whether
+# to split by SERIALNO instead (rsample::group_initial_split()).
+split <- initial_split(vets, prop = 0.80)
+
+dev_raw     <- training(split)
+holdout_raw <- testing(split)
+
+c(total = nrow(vets), development = nrow(dev_raw), holdout = nrow(holdout_raw))
+```
+
+Save the split. Store the holdout OUTSIDE the project directory so it cannot be
+swept into AI tool context or your code zip.
+
+```{r save-holdout}
+holdout_path <- "/Users/gracekemmerenhendricks/Documents/Autumn 26/MS&E226/data/holdout/holdout_raw.rds"
+dir.create(dirname(holdout_path), showWarnings = FALSE, recursive = TRUE)
+saveRDS(holdout_raw, holdout_path)
+
+# Safe-to-share record of the split (IDs only) -> can go in the code zip
+dev_raw |>
+  select(SERIALNO, SPORDER) |>
+  write_csv("dev_ids.csv")
+holdout_raw |>
+  select(SERIALNO, SPORDER) |>
+  write_csv("holdout_ids.csv")
+
+# Remove the holdout from this R session so nothing downstream can touch it
+rm(holdout_raw, split, pums_raw, vets)
+invisible(gc())
+```
+
+*DONE (report):** seed, sample sizes, and how you kept holdout data away from
+yourself and any AI tool (e.g., stored outside project, removed from session,
+never pasted/uploaded).
+
+# 5. Data description and exploration (development data only)
+
+## Cleaning/recoding function
+
+Write recoding as a *function* so the exact same transformation can be applied
+to the holdout in Part 2. Keep it deterministic (no statistics computed from
+the data here; that belongs in the recipe).
+```{r}
+dev_raw |> count(DOUT)
+```
+
+```{r clean-function}
+# DONE: choose your candidate predictors from the data dictionary, BASED ON
+# what a commander would plausibly know at the time of the SkillBridge request.
+#
+# Candidates to consider (verify names/codes in the 2024 dictionary):
+#   Demographic/biographical: AGEP, SEX, RAC1P, HISP, MAR, CIT, NATIVITY, ST,
+#                             ENG, LANX
+#   Education:                SCHL
+#   Military/veteran:         MIL, MLPA..MLPK (period-of-service flags), DRAT / DRATX
+#                             (VA disability rating), DIS (disability), HICOV
+#
+# BE CAREFUL (leakage / "not known at decision time"):
+#   - PINCP's own components: WAGP, SEMP, RETP, INTP, SSP, SSIP, PAP, OIP
+#   - Post-separation work outcomes: ESR, COW, OCCP, INDP, WKHP, WKWN, WKL
+#   Decide deliberately which of these (if any) belong and say why. Features
+#   a commander would not have, or that mechanically contain the outcome,
+#   will inflate performance without helping your stakeholder.
+
+predictor_vars <- c(
+  "STATE", "AGEP", "SEX", "RAC1P", "MAR", "PAOC", 
+  "CIT" , "NATIVITY", "LANX", "ENG", "WAOB",
+  "DIS", "DRAT", "DRATX", "DEAR", "DEYE", "DPHY", "DREM", "DDRS", "DOUT",
+  "SCHL", "FOD1P", "SCIENGRLP")
+
+state_lookup <- c(
+  "01" = "Alabama",        "02" = "Alaska",         "04" = "Arizona",
+  "05" = "Arkansas",       "06" = "California",     "08" = "Colorado",
+  "09" = "Connecticut",    "10" = "Delaware",       "11" = "District of Columbia",
+  "12" = "Florida",        "13" = "Georgia",        "15" = "Hawaii",
+  "16" = "Idaho",          "17" = "Illinois",       "18" = "Indiana",
+  "19" = "Iowa",           "20" = "Kansas",         "21" = "Kentucky",
+  "22" = "Louisiana",      "23" = "Maine",          "24" = "Maryland",
+  "25" = "Massachusetts",  "26" = "Michigan",       "27" = "Minnesota",
+  "28" = "Mississippi",    "29" = "Missouri",       "30" = "Montana",
+  "31" = "Nebraska",       "32" = "Nevada",         "33" = "New Hampshire",
+  "34" = "New Jersey",     "35" = "New Mexico",     "36" = "New York",
+  "37" = "North Carolina", "38" = "North Dakota",   "39" = "Ohio",
+  "40" = "Oklahoma",       "41" = "Oregon",         "42" = "Pennsylvania",
+  "44" = "Rhode Island",   "45" = "South Carolina", "46" = "South Dakota",
+  "47" = "Tennessee",      "48" = "Texas",          "49" = "Utah",
+  "50" = "Vermont",        "51" = "Virginia",       "53" = "Washington",
+  "54" = "West Virginia",  "55" = "Wisconsin",      "56" = "Wyoming",
+  "72" = "Puerto Rico"
+)
+
+rac1p_lookup <- c(
+  "1" = "White alone",
+  "2" = "Black or African American alone",
+  "3" = "American Indian alone",
+  "4" = "Alaska Native alone",
+  "5" = "American Indian and Alaska Native tribes specified; or American Indian or Alaska Native, not specified and no other races",
+  "6" = "Asian alone",
+  "7" = "Native Hawaiian and Other Pacific Islander alone",
+  "8" = "Some Other Race alone",
+  "9" = "wo or More Races"
+)
+
+mar_lookup <- c(
+  "1" = "Married",
+  "2" = "Widowed",
+  "3" = "Divorced",
+  "4" = "Separated",
+  "5" = "Never married or under 15 years old"
+)
+
+paoc_lookup <- c(
+  "1" = "Females with own children under 6 years only",
+  "2" = "Females with own children 6 to 17 years only",
+  "3" = "Females with own children under 6 years and 6 to 17 years",
+  "4" = "Females with no own children",
+  "N" = "Not applicable"
+)
+
+cit_lookup <- c(
+  "1" = "Born in the US",
+  "2" = "Born in Puerto Rico, Guam, the U.S. Virgin Islands, or Northern Marianas",
+  "3" = "Born abroad of U.S. citizen parent or parents",
+  "4" = "U.S. citizen by naturalization",
+  "5" = "Not a U.S. citizen"
+)
+
+eng_lookup <- c(
+  "1" = "Very well",
+  "2" = "Well",
+  "3" = "Not Well",
+  "N" = "Not applicable; speaks only english"
+)
+
+waob_lookup <- c(
+  "1" = "US state",
+  "2" = "PR and US Island Areas",
+  "3" = "Latin America",
+  "4" = "Asia",
+  "5" = "Europe",
+  "6" = "Africae",
+  "7" = "Northern America",
+  "8" = "Oceania and at sea"
+)
+
+#* Combine not reported and NA?!?
+drat_lookup <- c(
+  "1" = "0%",
+  "2" = "10 or 20%",
+  "3" = "30 or 40%",
+  "4" = "50 or 60%",
+  "5" = "70, 80, 90, or 100%",
+  "6" = "Not Reported",
+  "N" = "Not applicable"
+)
+
+
+clean_pums <- function(df) {
+  df |>
+    select(SERIALNO, SPORDER, PERNP_adj, any_of(predictor_vars)) |>
+    mutate(
+      STATE = factor(STATE, levels = names(state_lookup),
+                    labels = unname(state_lookup)),
+      SEX = factor(SEX, levels = 1:2, labels = c("Male", "Female")),
+      RAC1P = factor(RAC1P, levels = names(rac1p_lookup),
+                    labels = unname(rac1p_lookup)),
+      MAR = factor(RAC1P, levels = names(mar_lookup),
+                    labels = unname(mar_lookup)),
+      PAOC = factor(coalesce(PAOC, "N"),
+                    levels = names(paoc_lookup),
+                    labels = unname(paoc_lookup)),
+      CIT = factor(CIT, levels = names(cit_lookup),
+                    labels = unname(cit_lookup)),
+      NATIVITY = factor(NATIVITY, levels = 1:2, labels = c("Native", "Foreign Born")),
+      LANX = factor(LANX, levels = 1:2, labels = c("Speaks another Language", "Only English")),
+      ENG = factor(coalesce(ENG, "N"),
+                    levels = names(eng_lookup),
+                    labels = unname(eng_lookup)),
+      WAOB = factor(WAOB, levels = names(waob_lookup),
+                    labels = unname(waob_lookup)),
+      DIS = factor(DIS, levels = 1:2, labels = c("With a Disability", "Without a Disability")),
+      DRAT = factor(coalesce(DRAT, "N"),
+                    levels = names(drat_lookup),
+                    labels = unname(drat_lookup)),
+
+      across(c(DRATX, DEAR, DEYE, DPHY, DREM, DDRS, DOUT),
+             ~ factor(.x, levels = c("1", "2"), labels = c("Yes", "No")))  
+    )
+}
+
+dev <- clean_pums(dev_raw)
+glimpse(dev)
+```
+
+## 5(a) Data collection process
+
+**TODO:** the ACS is a Census Bureau survey (self-reported, sampled households,
+nonresponse/imputation flags, weights `PWGTP`, top-coding of income, group
+quarters, etc.). Which of these matter for your analysis? Note that you are
+ignoring survey weights unless you decide otherwise: say so and what that means
+for interpretation. Check the technical documentation on sampling and editing/
+imputation.
+
+## 5(b) Correlates of the outcome
+
+First look at the outcome itself. Note features of its distribution (spike at
+zero? negatives? skew? top-coding?) because they affect your metric and
+modeling choices in Section 6.
+
+```{r outcome-dist}
+dev |>
+  ggplot(aes(PERNP_adj)) +
+  geom_histogram(bins = 60) +
+  labs(x = "Total personal Earnings (2024 $)", y = "Count")
+
+dev |>
+  summarise(
+    n = n(),
+    mean = mean(PERNP_adj), median = median(PERNP_adj), sd = sd(PERNP_adj),
+    min = min(PERNP_adj), max = max(PERNP_adj),
+    prop_zero = mean(PERNP_adj == 0), prop_neg = mean(PERNP_adj < 0)
+  )
+```
+
+Numeric predictors vs outcome:
+
+```{r numeric-cor}
+num_vars <- dev |> select(where(is.numeric), -SPORDER) |> names()
+
+dev |>
+  select(all_of(num_vars)) |>
+  correlate(use = "pairwise.complete.obs", method = "pearson") |>  # TODO: also consider Spearman -- why?
+  focus(PERNP_adj) |>
+  arrange(desc(abs(PERNP_adj)))
+
+# Example scatter (alpha/binning because of many rows)
+dev |>
+  ggplot(aes(AGEP, PERNP_adj)) +
+  geom_bin2d(bins = 50) +
+  geom_smooth(se = FALSE)
+```
+
+Categorical predictors vs outcome (distribution by category):
+
+```{r cat-compare}
+# Template: repeat / loop over your categorical variables
+dev |>
+  ggplot(aes(x = SEX, y = income)) +
+  geom_boxplot(outlier.alpha = 0.1) +
+  coord_cartesian(ylim = c(NA, quantile(dev$income, 0.99)))  # TODO: justify any axis clipping
+
+dev |>
+  group_by(SEX) |>
+  summarise(n = n(), mean = mean(income), median = median(income), .groups = "drop")
+```
+
+**TODO:** summarize strongest, weakest, and surprising relationships. A
+number alone is not an explanation; say *why* a result is or isn't surprising.
+
+## 5(c) Correlations among covariates
+
+```{r cov-cor}
+dev |>
+  select(all_of(num_vars), -income) |>
+  correlate(use = "pairwise.complete.obs") |>
+  shave() |>
+  rplot()
+
+# Categorical-categorical: contingency table + a simple association measure
+dev |> count(SEX, DIS) |> group_by(SEX) |> mutate(prop = n / sum(n))
+# TODO: chi-square or Cramer's V for key pairs, and categorical-vs-numeric
+# comparisons (e.g., AGEP by SCHL)
+```
+
+## 5(d) Natural subgroups
+
+```{r subgroups}
+# TODO: pick subgroup(s) relevant to your stakeholder (e.g., period of service,
+# education level, enlisted/officer proxies if available, disability rating).
+dev |>
+  group_by(SEX) |>   # <- replace with your grouping variable
+  summarise(
+    n = n(),
+    across(c(income, AGEP), list(mean = mean, sd = sd), .names = "{.col}_{.fn}"),
+    .groups = "drop"
+  )
+```
+
+## 5(e) Missing data
+
+PUMS uses blank/NA for "not applicable," which is not the same as "missing at
+random." Read the dictionary for each predictor to learn what NA means
+(e.g., N/A because of age vs. truly unreported).
+
+```{r missing}
+dev |>
+  summarise(across(everything(), ~ sum(is.na(.x)))) |>
+  pivot_longer(everything(), names_to = "var", values_to = "n_na") |>
+  mutate(prop_na = n_na / nrow(dev)) |>
+  arrange(desc(n_na))
+```
+
+**TODO:** decide drop vs. impute vs. add an indicator/"Missing" level, per
+variable, and justify. Any data-dependent imputation (median, mode, model-based)
+must be fit in the recipe inside CV (Section 6), not here.
+
+# 6. Prediction
+
+## 6(a) Metrics
+
+```{r metrics}
+# TODO: pick and justify. Think about what error costs a commander and which
+# metric reflects it. Consider how outliers/skew/top-coding affect RMSE vs MAE,
+# and whether you will predict on the dollar scale or log scale (careful:
+# income can be 0 or negative, so log(income) needs a deliberate choice) and
+# what scale your metric is reported on.
+primary_metric <- "rmse"   # TODO: justify, or change
+my_metrics <- metric_set(rmse, mae, rsq)
+```
+
+## 6(b) Evaluation procedure (same folds for everything)
+
+```{r folds}
+set.seed(GLOBAL_SEED)
+folds <- vfold_cv(dev, v = 10)   # TODO: choose v (and repeats), justify
+# If you split by household in Section 4, consider group_vfold_cv(group = SERIALNO)
+folds
+```
+
+Preprocessing lives inside `recipe()`s so it is re-fit on the analysis portion
+of each fold and applied to that fold's assessment portion.
+
+## 6(c) Baseline
+
+```{r baseline}
+# Predict the training-fold mean income. Evaluated on the same folds.
+baseline_spec <- null_model() |> set_engine("parsnip") |> set_mode("regression")
+
+baseline_res <- workflow() |>
+  add_formula(income ~ 1) |>
+  add_model(baseline_spec) |>
+  fit_resamples(folds, metrics = my_metrics)
+
+collect_metrics(baseline_res)
+```
+
+## 6(d) Algorithms and feature sets
+
+Feature sets: define at least two, apply to EVERY algorithm. Use exploration
+findings to motivate them. Keep them as *formulas or recipe steps* so they are
+reusable.
+
+```{r feature-sets}
+# TODO: define your two (or more) feature sets and the rationale for each.
+# Examples of differences: with/without a group of variables, collapsed vs
+# full-granularity categories, added interactions or nonlinear terms
+# (e.g., age^2), engineered features.
+
+# Shared preprocessing skeleton: recipe is fit on training portion of each fold
+make_recipe <- function(formula, data = dev) {
+  recipe(formula, data = data) |>
+    update_role(SERIALNO, SPORDER, new_role = "id") |>   # keep IDs out of the model
+    step_impute_median(all_numeric_predictors()) |>      # TODO: your missing-data plan
+    step_unknown(all_nominal_predictors()) |>
+    step_novel(all_nominal_predictors()) |>
+    step_other(all_nominal_predictors(), threshold = 0.01) |>  # TODO: justify threshold
+    step_dummy(all_nominal_predictors()) |>
+    step_zv(all_predictors()) |>
+    step_normalize(all_numeric_predictors())             # needed for lasso; harmless for OLS/trees
+}
+# NOTE: if you use ID columns, include them in the formula so the roles apply,
+# e.g. income ~ . but then drop outcome-leaking columns explicitly.
+
+fs_A <- income ~ AGEP + SEX + RAC1P + SCHL + SERIALNO + SPORDER               # TODO: smaller set
+fs_B <- income ~ AGEP + SEX + RAC1P + SCHL + MAR + DIS + HISP + ST + SERIALNO + SPORDER  # TODO: richer set
+
+feature_sets <- list(A = fs_A, B = fs_B)
+```
+
+Algorithms (at least three; at least one non-linear-model-family):
+
+```{r algorithms}
+# TODO: for each, write 2-3 sentences in your report on why you chose it and
+# how it produces predictions. You must be able to explain tuning parameters.
+
+lin_spec <- linear_reg() |> set_engine("lm")                       # linear regression (required)
+
+lasso_spec <- linear_reg(penalty = tune(), mixture = 1) |>         # linear-family, but remember it
+  set_engine("glmnet")                                             # doesn't count as "non-linear"
+
+rf_spec <- rand_forest(mtry = tune(), min_n = tune(), trees = 500) |>  # non-linear family
+  set_mode("regression") |>
+  set_engine("ranger")
+
+# Alternatives for the third algorithm: decision tree (rpart), boosted trees
+# (xgboost), kNN, etc. Pick what you can explain and defend.
+```
+
+## 6(e) Train, tune, compare
+
+```{r tuning-grids}
+# Document the scope of search for the report (number of trials/grid size).
+lasso_grid <- grid_regular(penalty(range = c(-4, 0)), levels = 20)   # TODO: justify range
+
+rf_grid_fn <- function(rec) {
+  # mtry upper bound depends on the number of predictors after the recipe
+  n_pred <- rec |> prep(dev) |> bake(new_data = NULL) |>
+    select(-any_of(c("income", "SERIALNO", "SPORDER"))) |> ncol()
+  grid_regular(mtry(range = c(1, n_pred)), min_n(range = c(5, 50)), levels = 4)  # TODO
+}
+```
+
+```{r run-experiments}
+run_one <- function(spec, formula, grid = NULL, fs_name, algo_name) {
+  rec <- make_recipe(formula)
+  wf  <- workflow() |> add_recipe(rec) |> add_model(spec)
+
+  if (is.null(grid)) {
+    res <- fit_resamples(wf, folds, metrics = my_metrics)
+  } else {
+    set.seed(GLOBAL_SEED)   # same seed for every tuning run
+    res <- tune_grid(wf, folds, grid = grid, metrics = my_metrics)
+  }
+  list(res = res, wf = wf, fs = fs_name, algo = algo_name,
+       n_configs = if (is.null(grid)) 1 else nrow(grid))
+}
+
+results <- list()
+for (fs_name in names(feature_sets)) {
+  f <- feature_sets[[fs_name]]
+  results[[paste("lm",    fs_name)]] <- run_one(lin_spec,   f, NULL,       fs_name, "Linear regression")
+  results[[paste("lasso", fs_name)]] <- run_one(lasso_spec, f, lasso_grid, fs_name, "Lasso")
+  results[[paste("rf",    fs_name)]] <- run_one(rf_spec,    f,
+                                                 rf_grid_fn(make_recipe(f)), fs_name, "Random forest")
+}
+```
+
+Comparison table (one table for the report: add the baseline row, and tuning
+settings tried / selected):
+
+```{r comparison-table}
+best_row <- function(x) {
+  m <- collect_metrics(x$res) |> filter(.metric == primary_metric)
+  m |> slice_min(mean, n = 1, with_ties = FALSE) |>
+    mutate(algorithm = x$algo, feature_set = x$fs, n_configs = x$n_configs)
+}
+
+comparison <- map(results, best_row) |> list_rbind() |>
+  select(algorithm, feature_set, n_configs, mean, std_err, any_of(c("penalty", "mtry", "min_n"))) |>
+  arrange(mean)
+
+baseline_row <- collect_metrics(baseline_res) |>
+  filter(.metric == primary_metric) |>
+  transmute(algorithm = "Baseline (mean)", feature_set = "-", n_configs = 1, mean, std_err)
+
+bind_rows(baseline_row, comparison) |> knitr::kable(digits = 1)
+```
+
+**TODO (6e):** discuss which algorithms do better per feature set; how
+feature-set changes affect each algorithm; whether differences are large
+relative to `std_err` and *practically* meaningful in dollars to a commander.
+
+## 6(f) Final model selection and saved pipeline
+
+```{r final-model}
+# TODO: choose the winner by your primary metric (and explain/interpret it).
+winner_key <- comparison |> slice(1)
+winner <- results[[ paste(c("Linear regression" = "lm", "Lasso" = "lasso",
+                            "Random forest" = "rf")[winner_key$algorithm],
+                          winner_key$feature_set) ]]
+
+best_params <- if (winner$n_configs > 1) select_best(winner$res, metric = primary_metric) else NULL
+
+final_wf <- if (!is.null(best_params)) finalize_workflow(winner$wf, best_params) else winner$wf
+
+# Refit on ALL development data (allowed by the handout); recipe is re-fit here too
+final_fit <- fit(final_wf, data = dev)
+
+# Save everything needed to predict in Part 2:
+# fitted workflow (includes fitted recipe + model), cleaning function, metadata
+dir.create("final_pipeline", showWarnings = FALSE)
+saveRDS(final_fit, "final_pipeline/final_fit.rds")
+saveRDS(list(
+  clean_pums     = clean_pums,
+  predictor_vars = predictor_vars,
+  best_params    = best_params,
+  primary_metric = primary_metric,
+  seed           = GLOBAL_SEED,
+  algorithm      = winner_key$algorithm,
+  feature_set    = winner_key$feature_set
+), "final_pipeline/pipeline_meta.rds")
+
+# Interpretation helpers (pick what fits your model):
+# - lm/lasso: tidy(extract_fit_parsnip(final_fit))
+# - rf: vip::vip(extract_fit_parsnip(final_fit)) or permutation importance
+```
+
+```{r session-info}
+sessionInfo()   # include package versions in your code zip (Section 9)
+```
+
+# 7-9. Stakeholder guidance, AI tools, code upload
+
+Written sections; no code needed. Remember: Section 9 needs a zip with this
+.Rmd, seeds, package versions (e.g., `renv::snapshot()`), and data access
+instructions, but not the raw data or the holdout file.
