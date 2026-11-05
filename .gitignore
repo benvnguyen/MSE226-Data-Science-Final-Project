@@ -1,0 +1,9 @@
+# Course guidlines
+Project Guidlines Part 1.pdf
+
+# Private working notes and Claude config
+docs/
+.claude/
+
+# Temporary Files
+.Rhistory
