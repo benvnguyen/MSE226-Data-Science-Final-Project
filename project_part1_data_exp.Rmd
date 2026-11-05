@@ -1,0 +1,688 @@
+---
+title: "MS&E 226 Project Part 1: Veteran Income Prediction (ACS 2024 1-Year PUMS)"
+subtitle: "Data Exploration"
+author: "Grace Hendricks, Ben Nguyen, & Erick Rodriguez"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(tidymodels)   # rsample, recipes, parsnip, workflows, tune, yardstick
+library(janitor)      # clean_names(), get_dupes()
+library(corrr)        # optional: tidy correlation matrices
+tidymodels_prefer()
+
+GLOBAL_SEED <- 32    # DONE: pick your seed and report it in Section 4
+```
+
+# 5. Data description and exploration (development data only)
+
+## Load in raw data
+```{r}
+dev_path <- "/Users/gracekemmerenhendricks/Documents/Autumn 26/data/dev/dev_raw.rds"
+dev_raw <- readRDS(dev_path)
+
+# Sanity checks
+stopifnot(file.exists(dev_path))
+dim(dev_raw)        # rows and columns; compare with the development count from your split output
+glimpse(dev_raw)    # column types should match what you saved
+```
+
+
+## Cleaning/recoding function
+
+Write recoding as a *function* so the exact same transformation can be applied
+to the holdout in Part 2. Keep it deterministic (no statistics computed from
+the data here; that belongs in the recipe).
+```{r}
+dev_raw |> count(SCIENGRLP)
+```
+
+```{r clean-function}
+# DONE: choose your candidate predictors from the data dictionary, BASED ON
+# what a commander would plausibly know at the time of the SkillBridge request.
+#
+# Candidates to consider (verify names/codes in the 2024 dictionary):
+#   Demographic/biographical: AGEP, SEX, RAC1P, MAR, CIT, NATIVITY, ST,
+#                             ENG, LANX
+#   Education:                SCHL
+#   Military/veteran:         MIL, MLPA..MLPK (period-of-service flags), DRAT / DRATX
+#                             (VA disability rating), DIS (disability), HICOV
+#   Work-related:             JWMNP, WKHP, WKWN
+#
+
+predictor_vars <- c(
+  "STATE", "AGEP", "SEX", "RAC1P", "MAR", "PAOC", 
+  "CIT" , "NATIVITY", "LANX", "ENG", "WAOB",
+  "DIS", "DRAT", "DRATX", "DEAR", "DEYE", "DPHY", "DREM", "DDRS", "DOUT",
+  "SCHL", "FOD1P", "SCIENGRLP",
+  "JWMNP", "WKHP", "WKWN")
+
+state_lookup <- c(
+  "01" = "Alabama",        "02" = "Alaska",         "04" = "Arizona",
+  "05" = "Arkansas",       "06" = "California",     "08" = "Colorado",
+  "09" = "Connecticut",    "10" = "Delaware",       "11" = "District of Columbia",
+  "12" = "Florida",        "13" = "Georgia",        "15" = "Hawaii",
+  "16" = "Idaho",          "17" = "Illinois",       "18" = "Indiana",
+  "19" = "Iowa",           "20" = "Kansas",         "21" = "Kentucky",
+  "22" = "Louisiana",      "23" = "Maine",          "24" = "Maryland",
+  "25" = "Massachusetts",  "26" = "Michigan",       "27" = "Minnesota",
+  "28" = "Mississippi",    "29" = "Missouri",       "30" = "Montana",
+  "31" = "Nebraska",       "32" = "Nevada",         "33" = "New Hampshire",
+  "34" = "New Jersey",     "35" = "New Mexico",     "36" = "New York",
+  "37" = "North Carolina", "38" = "North Dakota",   "39" = "Ohio",
+  "40" = "Oklahoma",       "41" = "Oregon",         "42" = "Pennsylvania",
+  "44" = "Rhode Island",   "45" = "South Carolina", "46" = "South Dakota",
+  "47" = "Tennessee",      "48" = "Texas",          "49" = "Utah",
+  "50" = "Vermont",        "51" = "Virginia",       "53" = "Washington",
+  "54" = "West Virginia",  "55" = "Wisconsin",      "56" = "Wyoming",
+  "72" = "Puerto Rico"
+)
+
+rac1p_lookup <- c(
+  "1" = "White alone",
+  "2" = "Black or African American alone",
+  "3" = "American Indian alone",
+  "4" = "Alaska Native alone",
+  "5" = "American Indian and Alaska Native tribes specified; or American Indian or Alaska Native, not specified and no other races",
+  "6" = "Asian alone",
+  "7" = "Native Hawaiian and Other Pacific Islander alone",
+  "8" = "Some Other Race alone",
+  "9" = "wo or More Races"
+)
+
+mar_lookup <- c(
+  "1" = "Married",
+  "2" = "Widowed",
+  "3" = "Divorced",
+  "4" = "Separated",
+  "5" = "Never married or under 15 years old"
+)
+
+paoc_lookup <- c(
+  "1" = "Females with own children under 6 years only",
+  "2" = "Females with own children 6 to 17 years only",
+  "3" = "Females with own children under 6 years and 6 to 17 years",
+  "4" = "Females with no own children",
+  "N" = "Not applicable"
+)
+
+cit_lookup <- c(
+  "1" = "Born in the US",
+  "2" = "Born in Puerto Rico, Guam, the U.S. Virgin Islands, or Northern Marianas",
+  "3" = "Born abroad of U.S. citizen parent or parents",
+  "4" = "U.S. citizen by naturalization",
+  "5" = "Not a U.S. citizen"
+)
+
+eng_lookup <- c(
+  "1" = "Very well",
+  "2" = "Well",
+  "3" = "Not Well",
+  "N" = "Not applicable; speaks only english"
+)
+
+waob_lookup <- c(
+  "1" = "US state",
+  "2" = "PR and US Island Areas",
+  "3" = "Latin America",
+  "4" = "Asia",
+  "5" = "Europe",
+  "6" = "Africae",
+  "7" = "Northern America",
+  "8" = "Oceania and at sea"
+)
+
+#* Combine not reported and NA?!?
+drat_lookup <- c(
+  "1" = "0%",
+  "2" = "10 or 20%",
+  "3" = "30 or 40%",
+  "4" = "50 or 60%",
+  "5" = "70, 80, 90, or 100%",
+  "6" = "Not Reported",
+  "N" = "Not applicable"
+)
+
+sciengrlp_lookup <- c(
+  "1" = "Yes",
+  "2" = "No",
+  "N" = "Less than Bach"
+)
+
+fod1p_lookup <- c(
+  "1100" = "General Agriculture",
+  "1101" = "Agriculture Production And Management",
+  "1102" = "Agricultural Economics",
+  "1103" = "Animal Sciences",
+  "1104" = "Food Science",
+  "1105" = "Plant Science And Agronomy",
+  "1106" = "Soil Science",
+  "1107" = "Veterinary Medicine",
+  "1199" = "Miscellaneous Agriculture",
+  "1301" = "Environmental Science",
+  "1302" = "Forestry",
+  "1303" = "Natural Resources Management",
+  "1401" = "Architecture",
+  "1501" = "Area Ethnic And Civilization Studies",
+  "1901" = "Communications",
+  "1902" = "Journalism",
+  "1903" = "Mass Media",
+  "1904" = "Advertising And Public Relations",
+  "2001" = "Communication Technologies",
+  "2100" = "Computer And Information Systems",
+  "2101" = "Computer Programming And Data Processing",
+  "2102" = "Computer Science",
+  "2105" = "Information Sciences",
+  "2106" = "Computer Administration Management And Security",
+  "2107" = "Computer Networking And Telecommunications",
+  "2201" = "Cosmetology Services And Culinary Arts",
+  "2300" = "General Education",
+  "2301" = "Educational Administration And Supervision",
+  "2303" = "School Student Counseling",
+  "2304" = "Elementary Education",
+  "2305" = "Mathematics Teacher Education",
+  "2306" = "Physical And Health Education Teaching",
+  "2307" = "Early Childhood Education",
+  "2308" = "Science And Computer Teacher Education",
+  "2309" = "Secondary Teacher Education",
+  "2310" = "Special Needs Education",
+  "2311" = "Social Science Or History Teacher Education",
+  "2312" = "Teacher Education: Multiple Levels",
+  "2313" = "Language And Drama Education",
+  "2314" = "Art And Music Education",
+  "2399" = "Miscellaneous Education",
+  "2400" = "General Engineering",
+  "2401" = "Aerospace Engineering",
+  "2402" = "Biological Engineering",
+  "2403" = "Architectural Engineering",
+  "2404" = "Biomedical Engineering",
+  "2405" = "Chemical Engineering",
+  "2406" = "Civil Engineering",
+  "2407" = "Computer Engineering",
+  "2408" = "Electrical Engineering",
+  "2409" = "Engineering Mechanics Physics And Science",
+  "2410" = "Environmental Engineering",
+  "2411" = "Geological And Geophysical Engineering",
+  "2412" = "Industrial And Manufacturing Engineering",
+  "2413" = "Materials Engineering And Materials Science",
+  "2414" = "Mechanical Engineering",
+  "2415" = "Metallurgical Engineering",
+  "2416" = "Mining And Mineral Engineering",
+  "2417" = "Naval Architecture And Marine Engineering",
+  "2418" = "Nuclear Engineering",
+  "2419" = "Petroleum Engineering",
+  "2499" = "Miscellaneous Engineering",
+  "2500" = "Engineering Technologies",
+  "2501" = "Engineering And Industrial Management",
+  "2502" = "Electrical Engineering Technology",
+  "2503" = "Industrial Production Technologies",
+  "2504" = "Mechanical Engineering Related Technologies",
+  "2599" = "Miscellaneous Engineering Technologies",
+  "2601" = "Linguistics And Comparative Language And Literature",
+  "2602" = "French German Latin And Other Common Foreign Language Studies",
+  "2603" = "Other Foreign Languages",
+  "2901" = "Family And Consumer Sciences",
+  "3202" = "Pre-Law And Legal Studies",
+  "3301" = "English Language And Literature",
+  "3302" = "Composition And Rhetoric",
+  "3401" = "Liberal Arts",
+  "3402" = "Humanities",
+  "3501" = "Library Science",
+  "3600" = "Biology",
+  "3601" = "Biochemical Sciences",
+  "3602" = "Botany",
+  "3603" = "Molecular Biology",
+  "3604" = "Ecology",
+  "3605" = "Genetics",
+  "3606" = "Microbiology",
+  "3607" = "Pharmacology",
+  "3608" = "Physiology",
+  "3609" = "Zoology",
+  "3611" = "Neuroscience",
+  "3699" = "Miscellaneous Biology",
+  "3700" = "Mathematics",
+  "3701" = "Applied Mathematics",
+  "3702" = "Statistics And Decision Science",
+  "3801" = "Military Technologies",
+  "4000" = "Multi/Interdisciplinary Studies",
+  "4001" = "Intercultural And International Studies",
+  "4002" = "Nutrition Sciences",
+  "4005" = "Mathematics And Computer Science",
+  "4006" = "Cognitive Science And Biopsychology",
+  "4007" = "Interdisciplinary Social Sciences",
+  "4009" = "Data Science and Data Analytics",
+  "4101" = "Physical Fitness Parks Recreation And Leisure",
+  "4801" = "Philosophy And Religious Studies",
+  "4901" = "Theology And Religious Vocations",
+  "5000" = "Physical Sciences",
+  "5001" = "Astronomy And Astrophysics",
+  "5002" = "Atmospheric Sciences And Meteorology",
+  "5003" = "Chemistry",
+  "5004" = "Geology And Earth Science",
+  "5005" = "Geosciences",
+  "5006" = "Oceanography",
+  "5007" = "Physics",
+  "5008" = "Materials Science",
+  "5098" = "Multi-Disciplinary Or General Science",
+  "5102" = "Nuclear, Industrial Radiology, And Biological Technologies",
+  "5200" = "Psychology",
+  "5201" = "Educational Psychology",
+  "5202" = "Clinical Psychology",
+  "5203" = "Counseling Psychology",
+  "5205" = "Industrial And Organizational Psychology",
+  "5206" = "Social Psychology",
+  "5299" = "Miscellaneous Psychology",
+  "5301" = "Criminal Justice And Fire Protection",
+  "5401" = "Public Administration",
+  "5402" = "Public Policy",
+  "5403" = "Human Services And Community Organization",
+  "5404" = "Social Work",
+  "5500" = "General Social Sciences",
+  "5501" = "Economics",
+  "5502" = "Anthropology And Archeology",
+  "5503" = "Criminology",
+  "5504" = "Geography",
+  "5505" = "International Relations",
+  "5506" = "Political Science And Government",
+  "5507" = "Sociology",
+  "5599" = "Miscellaneous Social Sciences",
+  "5601" = "Construction Services",
+  "5701" = "Electrical, Mechanical, And Precision Technologies And Production",
+  "5901" = "Transportation Sciences And Technologies",
+  "6000" = "Fine Arts",
+  "6001" = "Drama And Theater Arts",
+  "6002" = "Music",
+  "6003" = "Visual And Performing Arts",
+  "6004" = "Commercial Art And Graphic Design",
+  "6005" = "Film Video And Photographic Arts",
+  "6006" = "Art History And Criticism",
+  "6007" = "Studio Arts",
+  "6099" = "Miscellaneous Fine Arts",
+  "6100" = "General Medical And Health Services",
+  "6102" = "Communication Disorders Sciences And Services",
+  "6103" = "Health And Medical Administrative Services",
+  "6104" = "Medical Assisting Services",
+  "6105" = "Medical Technologies Technicians",
+  "6106" = "Health And Medical Preparatory Programs",
+  "6107" = "Nursing",
+  "6108" = "Pharmacy Pharmaceutical Sciences And Administration",
+  "6109" = "Treatment Therapy Professions",
+  "6110" = "Community And Public Health",
+  "6199" = "Miscellaneous Health Medical Professions",
+  "6200" = "General Business",
+  "6201" = "Accounting",
+  "6202" = "Actuarial Science",
+  "6203" = "Business Management And Administration",
+  "6204" = "Operations Logistics And E-Commerce",
+  "6205" = "Business Economics",
+  "6206" = "Marketing And Marketing Research",
+  "6207" = "Finance",
+  "6209" = "Human Resources And Personnel Management",
+  "6210" = "International Business",
+  "6211" = "Hospitality Management",
+  "6212" = "Management Information Systems And Statistics",
+  "6299" = "Miscellaneous Business And Medical Administration",
+  "6402" = "History",
+  "6403" = "United States History",
+  "N" = "Less than Bach"
+)
+
+clean_pums <- function(df) {
+  df |>
+    select(SERIALNO, SPORDER, PERNP_adj, any_of(predictor_vars)) |>
+    mutate(
+      STATE = factor(STATE, levels = names(state_lookup),
+                    labels = unname(state_lookup)),
+      SEX = factor(SEX, levels = 1:2, labels = c("Male", "Female")),
+      RAC1P = factor(RAC1P, levels = names(rac1p_lookup),
+                    labels = unname(rac1p_lookup)),
+      MAR = factor(MAR, levels = names(mar_lookup),
+                    labels = unname(mar_lookup)),
+      PAOC = factor(coalesce(PAOC, "N"),
+                    levels = names(paoc_lookup),
+                    labels = unname(paoc_lookup)),
+      CIT = factor(CIT, levels = names(cit_lookup),
+                    labels = unname(cit_lookup)),
+      NATIVITY = factor(NATIVITY, levels = 1:2, labels = c("Native", "Foreign Born")),
+      LANX = factor(LANX, levels = 1:2, labels = c("Speaks another Language", "Only English")),
+      ENG = factor(coalesce(ENG, "N"),
+                    levels = names(eng_lookup),
+                    labels = unname(eng_lookup)),
+      WAOB = factor(WAOB, levels = names(waob_lookup),
+                    labels = unname(waob_lookup)),
+      DIS = factor(DIS, levels = 1:2, labels = c("With a Disability", "Without a Disability")),
+      DRAT = factor(coalesce(DRAT, "N"),
+                    levels = names(drat_lookup),
+                    labels = unname(drat_lookup)),
+      SCIENGRLP = factor(coalesce(SCIENGRLP, "N"),
+                    levels = names(sciengrlp_lookup),
+                    labels = unname(sciengrlp_lookup)),
+      FOD1P = factor(coalesce(FOD1P, "N"),
+                    levels = names(fod1p_lookup),
+                    labels = unname(fod1p_lookup)),
+      
+
+      across(c(DRATX, DEAR, DEYE, DPHY, DREM, DDRS, DOUT),
+             ~ factor(.x, levels = c("1", "2"), labels = c("Yes", "No")))  
+    )
+}
+
+dev <- clean_pums(dev_raw)
+glimpse(dev)
+```
+
+## 5(a) Data collection process
+
+**DONE:** the ACS is a Census Bureau survey (self-reported, sampled households,
+nonresponse/imputation flags, weights `PWGTP`, top-coding of income, group
+quarters, etc.). Which of these matter for your analysis? Note that you are
+ignoring survey weights unless you decide otherwise: say so and what that means
+for interpretation. Check the technical documentation on sampling and editing/
+imputation.
+
+## 5(b) Correlates of the outcome
+
+First look at the outcome itself. Note features of its distribution (spike at
+zero? negatives? skew? top-coding?) because they affect your metric and
+modeling choices in Section 6.
+
+```{r outcome-dist}
+dev |>
+  ggplot(aes(PERNP_adj)) +
+  geom_histogram(bins = 60) +
+  labs(x = "Total personal Earnings (2024 $)", y = "Count")
+
+dev |>
+  summarise(
+    n = n(),
+    mean = mean(PERNP_adj), median = median(PERNP_adj), sd = sd(PERNP_adj),
+    min = min(PERNP_adj), max = max(PERNP_adj),
+    prop_zero = mean(PERNP_adj == 0), prop_neg = mean(PERNP_adj < 0)
+  )
+```
+
+Numeric predictors vs outcome:
+
+```{r numeric-cor}
+num_vars <- dev |> select(where(is.numeric), -SPORDER) |> names()
+
+dev |>
+  select(all_of(num_vars)) |>
+  correlate(use = "pairwise.complete.obs", method = "pearson") |>  # TODO: also consider Spearman -- why?
+  focus(PERNP_adj) |>
+  arrange(desc(abs(PERNP_adj)))
+
+# Example scatter (alpha/binning because of many rows)
+dev |>
+  ggplot(aes(AGEP, PERNP_adj)) +
+  geom_bin2d(bins = 50) +
+  geom_smooth(se = FALSE)
+```
+
+Categorical predictors vs outcome (distribution by category):
+
+```{r cat-compare}
+# Template: repeat / loop over your categorical variables
+dev |>
+  ggplot(aes(x = SEX, y = income)) +
+  geom_boxplot(outlier.alpha = 0.1) +
+  coord_cartesian(ylim = c(NA, quantile(dev$income, 0.99)))  # TODO: justify any axis clipping
+
+dev |>
+  group_by(SEX) |>
+  summarise(n = n(), mean = mean(income), median = median(income), .groups = "drop")
+```
+
+**TODO:** summarize strongest, weakest, and surprising relationships. A
+number alone is not an explanation; say *why* a result is or isn't surprising.
+
+## 5(c) Correlations among covariates
+
+```{r cov-cor}
+dev |>
+  select(all_of(num_vars), -income) |>
+  correlate(use = "pairwise.complete.obs") |>
+  shave() |>
+  rplot()
+
+# Categorical-categorical: contingency table + a simple association measure
+dev |> count(SEX, DIS) |> group_by(SEX) |> mutate(prop = n / sum(n))
+# TODO: chi-square or Cramer's V for key pairs, and categorical-vs-numeric
+# comparisons (e.g., AGEP by SCHL)
+```
+
+## 5(d) Natural subgroups
+
+```{r subgroups}
+# TODO: pick subgroup(s) relevant to your stakeholder (e.g., period of service,
+# education level, enlisted/officer proxies if available, disability rating).
+dev |>
+  group_by(SEX) |>   # <- replace with your grouping variable
+  summarise(
+    n = n(),
+    across(c(income, AGEP), list(mean = mean, sd = sd), .names = "{.col}_{.fn}"),
+    .groups = "drop"
+  )
+```
+
+## 5(e) Missing data
+
+PUMS uses blank/NA for "not applicable," which is not the same as "missing at
+random." Read the dictionary for each predictor to learn what NA means
+(e.g., N/A because of age vs. truly unreported).
+
+```{r missing}
+dev |>
+  summarise(across(everything(), ~ sum(is.na(.x)))) |>
+  pivot_longer(everything(), names_to = "var", values_to = "n_na") |>
+  mutate(prop_na = n_na / nrow(dev)) |>
+  arrange(desc(n_na))
+```
+
+**TODO:** decide drop vs. impute vs. add an indicator/"Missing" level, per
+variable, and justify. Any data-dependent imputation (median, mode, model-based)
+must be fit in the recipe inside CV (Section 6), not here.
+
+# 6. Prediction
+
+## 6(a) Metrics
+
+```{r metrics}
+# TODO: pick and justify. Think about what error costs a commander and which
+# metric reflects it. Consider how outliers/skew/top-coding affect RMSE vs MAE,
+# and whether you will predict on the dollar scale or log scale (careful:
+# income can be 0 or negative, so log(income) needs a deliberate choice) and
+# what scale your metric is reported on.
+primary_metric <- "rmse"   # TODO: justify, or change
+my_metrics <- metric_set(rmse, mae, rsq)
+```
+
+## 6(b) Evaluation procedure (same folds for everything)
+
+```{r folds}
+set.seed(GLOBAL_SEED)
+folds <- vfold_cv(dev, v = 10)   # TODO: choose v (and repeats), justify
+# If you split by household in Section 4, consider group_vfold_cv(group = SERIALNO)
+folds
+```
+
+Preprocessing lives inside `recipe()`s so it is re-fit on the analysis portion
+of each fold and applied to that fold's assessment portion.
+
+## 6(c) Baseline
+
+```{r baseline}
+# Predict the training-fold mean income. Evaluated on the same folds.
+baseline_spec <- null_model() |> set_engine("parsnip") |> set_mode("regression")
+
+baseline_res <- workflow() |>
+  add_formula(income ~ 1) |>
+  add_model(baseline_spec) |>
+  fit_resamples(folds, metrics = my_metrics)
+
+collect_metrics(baseline_res)
+```
+
+## 6(d) Algorithms and feature sets
+
+Feature sets: define at least two, apply to EVERY algorithm. Use exploration
+findings to motivate them. Keep them as *formulas or recipe steps* so they are
+reusable.
+
+```{r feature-sets}
+# TODO: define your two (or more) feature sets and the rationale for each.
+# Examples of differences: with/without a group of variables, collapsed vs
+# full-granularity categories, added interactions or nonlinear terms
+# (e.g., age^2), engineered features.
+
+# Shared preprocessing skeleton: recipe is fit on training portion of each fold
+make_recipe <- function(formula, data = dev) {
+  recipe(formula, data = data) |>
+    update_role(SERIALNO, SPORDER, new_role = "id") |>   # keep IDs out of the model
+    step_impute_median(all_numeric_predictors()) |>      # TODO: your missing-data plan
+    step_unknown(all_nominal_predictors()) |>
+    step_novel(all_nominal_predictors()) |>
+    step_other(all_nominal_predictors(), threshold = 0.01) |>  # TODO: justify threshold
+    step_dummy(all_nominal_predictors()) |>
+    step_zv(all_predictors()) |>
+    step_normalize(all_numeric_predictors())             # needed for lasso; harmless for OLS/trees
+}
+# NOTE: if you use ID columns, include them in the formula so the roles apply,
+# e.g. income ~ . but then drop outcome-leaking columns explicitly.
+
+fs_A <- income ~ AGEP + SEX + RAC1P + SCHL + SERIALNO + SPORDER               # TODO: smaller set
+fs_B <- income ~ AGEP + SEX + RAC1P + SCHL + MAR + DIS + HISP + ST + SERIALNO + SPORDER  # TODO: richer set
+
+feature_sets <- list(A = fs_A, B = fs_B)
+```
+
+Algorithms (at least three; at least one non-linear-model-family):
+
+```{r algorithms}
+# TODO: for each, write 2-3 sentences in your report on why you chose it and
+# how it produces predictions. You must be able to explain tuning parameters.
+
+lin_spec <- linear_reg() |> set_engine("lm")                       # linear regression (required)
+
+lasso_spec <- linear_reg(penalty = tune(), mixture = 1) |>         # linear-family, but remember it
+  set_engine("glmnet")                                             # doesn't count as "non-linear"
+
+rf_spec <- rand_forest(mtry = tune(), min_n = tune(), trees = 500) |>  # non-linear family
+  set_mode("regression") |>
+  set_engine("ranger")
+
+# Alternatives for the third algorithm: decision tree (rpart), boosted trees
+# (xgboost), kNN, etc. Pick what you can explain and defend.
+```
+
+## 6(e) Train, tune, compare
+
+```{r tuning-grids}
+# Document the scope of search for the report (number of trials/grid size).
+lasso_grid <- grid_regular(penalty(range = c(-4, 0)), levels = 20)   # TODO: justify range
+
+rf_grid_fn <- function(rec) {
+  # mtry upper bound depends on the number of predictors after the recipe
+  n_pred <- rec |> prep(dev) |> bake(new_data = NULL) |>
+    select(-any_of(c("income", "SERIALNO", "SPORDER"))) |> ncol()
+  grid_regular(mtry(range = c(1, n_pred)), min_n(range = c(5, 50)), levels = 4)  # TODO
+}
+```
+
+```{r run-experiments}
+run_one <- function(spec, formula, grid = NULL, fs_name, algo_name) {
+  rec <- make_recipe(formula)
+  wf  <- workflow() |> add_recipe(rec) |> add_model(spec)
+
+  if (is.null(grid)) {
+    res <- fit_resamples(wf, folds, metrics = my_metrics)
+  } else {
+    set.seed(GLOBAL_SEED)   # same seed for every tuning run
+    res <- tune_grid(wf, folds, grid = grid, metrics = my_metrics)
+  }
+  list(res = res, wf = wf, fs = fs_name, algo = algo_name,
+       n_configs = if (is.null(grid)) 1 else nrow(grid))
+}
+
+results <- list()
+for (fs_name in names(feature_sets)) {
+  f <- feature_sets[[fs_name]]
+  results[[paste("lm",    fs_name)]] <- run_one(lin_spec,   f, NULL,       fs_name, "Linear regression")
+  results[[paste("lasso", fs_name)]] <- run_one(lasso_spec, f, lasso_grid, fs_name, "Lasso")
+  results[[paste("rf",    fs_name)]] <- run_one(rf_spec,    f,
+                                                 rf_grid_fn(make_recipe(f)), fs_name, "Random forest")
+}
+```
+
+Comparison table (one table for the report: add the baseline row, and tuning
+settings tried / selected):
+
+```{r comparison-table}
+best_row <- function(x) {
+  m <- collect_metrics(x$res) |> filter(.metric == primary_metric)
+  m |> slice_min(mean, n = 1, with_ties = FALSE) |>
+    mutate(algorithm = x$algo, feature_set = x$fs, n_configs = x$n_configs)
+}
+
+comparison <- map(results, best_row) |> list_rbind() |>
+  select(algorithm, feature_set, n_configs, mean, std_err, any_of(c("penalty", "mtry", "min_n"))) |>
+  arrange(mean)
+
+baseline_row <- collect_metrics(baseline_res) |>
+  filter(.metric == primary_metric) |>
+  transmute(algorithm = "Baseline (mean)", feature_set = "-", n_configs = 1, mean, std_err)
+
+bind_rows(baseline_row, comparison) |> knitr::kable(digits = 1)
+```
+
+**TODO (6e):** discuss which algorithms do better per feature set; how
+feature-set changes affect each algorithm; whether differences are large
+relative to `std_err` and *practically* meaningful in dollars to a commander.
+
+## 6(f) Final model selection and saved pipeline
+
+```{r final-model}
+# TODO: choose the winner by your primary metric (and explain/interpret it).
+winner_key <- comparison |> slice(1)
+winner <- results[[ paste(c("Linear regression" = "lm", "Lasso" = "lasso",
+                            "Random forest" = "rf")[winner_key$algorithm],
+                          winner_key$feature_set) ]]
+
+best_params <- if (winner$n_configs > 1) select_best(winner$res, metric = primary_metric) else NULL
+
+final_wf <- if (!is.null(best_params)) finalize_workflow(winner$wf, best_params) else winner$wf
+
+# Refit on ALL development data (allowed by the handout); recipe is re-fit here too
+final_fit <- fit(final_wf, data = dev)
+
+# Save everything needed to predict in Part 2:
+# fitted workflow (includes fitted recipe + model), cleaning function, metadata
+dir.create("final_pipeline", showWarnings = FALSE)
+saveRDS(final_fit, "final_pipeline/final_fit.rds")
+saveRDS(list(
+  clean_pums     = clean_pums,
+  predictor_vars = predictor_vars,
+  best_params    = best_params,
+  primary_metric = primary_metric,
+  seed           = GLOBAL_SEED,
+  algorithm      = winner_key$algorithm,
+  feature_set    = winner_key$feature_set
+), "final_pipeline/pipeline_meta.rds")
+
+# Interpretation helpers (pick what fits your model):
+# - lm/lasso: tidy(extract_fit_parsnip(final_fit))
+# - rf: vip::vip(extract_fit_parsnip(final_fit)) or permutation importance
+```
+
+```{r session-info}
+sessionInfo()   # include package versions in your code zip (Section 9)
+```
+
+# 7-9. Stakeholder guidance, AI tools, code upload
+
+Written sections; no code needed. Remember: Section 9 needs a zip with this
+.Rmd, seeds, package versions (e.g., `renv::snapshot()`), and data access
+instructions, but not the raw data or the holdout file.
