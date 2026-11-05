@@ -1,0 +1,113 @@
+---
+title: "Section 5(c): Correlations Among Covariates"
+author: "Erick Rodriguez (for Grace's main exploration file)"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+
+# Change this to your local dev_raw.rds path if it isn't next to this file
+dev_path <- "dev_raw.rds"
+```
+
+```{r load-and-clean, include=FALSE}
+if (!exists("dev")) {
+  dev_raw <- readRDS(dev_path)
+
+  # Pull Grace's clean-function chunk verbatim so both files share one recoding
+  rmd   <- readLines("project_part1_data_exp.Rmd")
+  start <- grep("^```[{]r clean-function", rmd)
+  end   <- which(grepl("^```[[:space:]]*$", rmd) & seq_along(rmd) > start)[1]
+  chunk <- rmd[(start + 1):(end - 1)]
+  chunk <- chunk[!startsWith(chunk, "dev <- clean_pums") & !startsWith(chunk, "glimpse")]
+  eval(parse(text = chunk))
+
+  dev <- clean_pums(dev_raw)
+}
+
+# Same education grouping as 5(b) and Section 6 (deterministic recode)
+dev <- dev |>
+  mutate(SCHL_grp = cut(as.numeric(SCHL),
+                        breaks = c(0, 15, 17, 19, 20, 21, 22, 24),
+                        labels = c("< HS", "HS / GED", "Some college", "Associate",
+                                   "Bachelor", "Master", "Prof / PhD")))
+```
+
+## Numeric covariates: Pearson correlation matrix
+
+```{r numeric-matrix}
+dev |>
+  select(WKHP, WKWN, JWMNP, AGEP) |>
+  cor() |>
+  round(2) |>
+  knitr::kable()
+```
+
+## Redundant categorical pairs (by construction)
+
+Cross-tabulating the categorical covariates shows several pairs where one
+variable fully determines the other. These come from how the ACS defines the
+variables, not from anything about veterans.
+
+```{r redundant-pairs}
+dev |> count(LANX, ENG)        # ENG is "N/A" exactly when the person speaks only English
+dev |> count(DRATX, DRAT)      # DRAT is "N/A" exactly when DRATX = No
+dev |> count(SEX, PAOC)        # PAOC is only asked of women
+```
+
+## Comparison 1: VA disability rating vs. ACS-reported disability
+
+```{r drat-dis-table}
+drat_dis <- dev |>
+  count(DRAT, DIS) |>
+  group_by(DRAT) |>
+  mutate(pct = 100 * n / sum(n)) |>
+  ungroup()
+
+drat_dis |>
+  filter(DIS == "With a Disability") |>
+  transmute(DRAT, n_total = round(n / (pct / 100)), pct_with_ACS_disability = pct) |>
+  knitr::kable(digits = 1)
+```
+
+```{r drat-dis-plot, fig.width = 6.5, fig.height = 3}
+drat_dis |>
+  mutate(DRAT = fct_rev(DRAT)) |>
+  ggplot(aes(x = pct, y = DRAT, fill = DIS)) +
+  geom_col(width = 0.7) +
+  scale_fill_manual(values = c("With a Disability" = "#b2182b",
+                               "Without a Disability" = "grey75")) +
+  labs(x = "% of veterans in rating group", y = "VA service-connected rating (DRAT)",
+       fill = "ACS disability (DIS)",
+       title = "Most highly-rated veterans report no functional disability") +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom")
+```
+
+Why it matters for prediction: the two variables split earnings differently.
+
+```{r drat-dis-earnings}
+dev |>
+  group_by(DRAT, DIS) |>
+  summarise(n = n(),
+            median_earnings = median(PERNP_adj),
+            pct_zero_earnings = 100 * mean(PERNP_adj == 0),
+            .groups = "drop") |>
+  knitr::kable(digits = 0, format.args = list(big.mark = ","))
+```
+
+## Comparison 2: education vs. having a VA rating
+
+```{r schl-dratx}
+dev |>
+  count(SCHL_grp, DRATX) |>
+  group_by(SCHL_grp) |>
+  mutate(pct = 100 * n / sum(n)) |>
+  filter(DRATX == "Yes") |>
+  transmute(SCHL_grp, n_total = sum(n / (pct / 100)), pct_with_VA_rating = pct) |>
+  knitr::kable(digits = 1)
+``

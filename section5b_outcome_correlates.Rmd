@@ -1,0 +1,92 @@
+---
+title: "Section 5(b): Correlates of Earnings"
+author: "Erick Rodriguez (for Grace's main exploration file)"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+dev_path <- "dev_raw.rds"   # change to your local dev_raw.rds path if needed
+```
+
+```{r load-and-clean, include=FALSE}
+if (!exists("dev")) {
+  dev_raw <- readRDS(dev_path)
+  rmd   <- readLines("project_part1_data_exp.Rmd")
+  start <- grep("^```[{]r clean-function", rmd)
+  end   <- which(grepl("^```[[:space:]]*$", rmd) & seq_along(rmd) > start)[1]
+  chunk <- rmd[(start + 1):(end - 1)]
+  chunk <- chunk[!startsWith(chunk, "dev <- clean_pums") & !startsWith(chunk, "glimpse")]
+  eval(parse(text = chunk))
+  dev <- clean_pums(dev_raw)
+}
+
+# Same education grouping as 5(c) and Section 6
+dev <- dev |>
+  mutate(SCHL_grp = cut(as.numeric(SCHL), breaks = c(0, 15, 17, 19, 20, 21, 22, 24),
+                        labels = c("< HS", "HS / GED", "Some college", "Associate",
+                                   "Bachelor", "Master", "Prof / PhD")))
+```
+
+Numeric covariates are covered by Grace's Table 3 (Pearson correlations).
+
+## Categorical covariates: earnings distributions across categories
+
+Earnings by category (median and mean, plus the share at exactly $0 because of
+the 17% spike at zero). The weakest-correlate claims in the text come from the
+second table.
+
+```{r cat-summaries}
+earn_summary <- function(v) {
+  dev |>
+    group_by(level = .data[[v]]) |>
+    summarise(n = n(), median = median(PERNP_adj), mean = mean(PERNP_adj),
+              pct_zero = 100 * mean(PERNP_adj == 0), .groups = "drop") |>
+    mutate(variable = v, level = as.character(level), .before = 1)
+}
+
+c("SCHL_grp", "MAR", "DOUT", "DIS", "SEX", "DRAT") |>
+  map_dfr(earn_summary) |>
+  knitr::kable(digits = c(0, 0, 0, 0, 0, 1), format.args = list(big.mark = ","))
+
+c("CIT", "ENG", "DRATX") |>
+  map_dfr(earn_summary) |>
+  knitr::kable(digits = c(0, 0, 0, 0, 0, 1), format.args = list(big.mark = ","))
+```
+
+## Figure
+
+```{r fig-5b, fig.width = 7.5, fig.height = 5.5}
+y_cap <- quantile(dev$PERNP_adj, 0.99)   # zoom only; no rows are dropped
+
+plot_df <- bind_rows(
+  dev |> transmute(panel = "Education", level = as.character(SCHL_grp), PERNP_adj),
+  dev |> transmute(panel = "Marital status",
+                   level = fct_recode(MAR, "Never married" = "Never married or under 15 years old") |>
+                     as.character(), PERNP_adj),
+  dev |> transmute(panel = "VA service-connected rating",
+                   level = fct_recode(DRAT, "No rating" = "Not applicable",
+                                      "70-100%" = "70, 80, 90, or 100%") |> as.character(),
+                   PERNP_adj),
+  dev |> transmute(panel = "Sex", level = as.character(SEX), PERNP_adj)
+)
+level_order <- c(levels(dev$SCHL_grp),
+                 "Married", "Widowed", "Divorced", "Separated", "Never married",
+                 "No rating", "0%", "10 or 20%", "30 or 40%", "50 or 60%", "70-100%", "Not Reported",
+                 "Male", "Female")
+plot_df <- plot_df |> mutate(level = factor(level, levels = level_order))
+
+ggplot(plot_df, aes(x = level, y = PERNP_adj / 1000)) +
+  geom_boxplot(outlier.shape = NA, fill = "grey85", width = 0.6) +
+  stat_summary(fun = mean, geom = "point", shape = 4, size = 2, colour = "#b2182b") +
+  facet_wrap(~ panel, scales = "free_x") +
+  coord_cartesian(ylim = c(0, y_cap / 1000)) +
+  scale_y_continuous(labels = scales::label_dollar(suffix = "k")) +
+  labs(x = NULL, y = "Total person's earnings (2024 $)",
+       caption = "Boxes: median and IQR. Red x: mean. y-axis zoomed to the 99th percentile; outliers not drawn.") +
+  theme_minimal(base_size = 9) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
