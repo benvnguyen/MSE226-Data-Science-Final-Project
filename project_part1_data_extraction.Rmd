@@ -1,0 +1,236 @@
+---
+title: "MS&E 226 Project Part 1: Veteran Income Prediction (ACS 2024 1-Year PUMS)"
+subtitle: "ACS 2024 1-Year PUMS Data Extraction"
+author: "Grace Hendricks, Ben Nguyen, & Erick Rodriguez"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(tidymodels)   # rsample, recipes, parsnip, workflows, tune, yardstick
+library(janitor)      # clean_names(), get_dupes()
+library(corrr)        # optional: tidy correlation matrices
+tidymodels_prefer()
+
+GLOBAL_SEED <- 32    # DONE: pick your seed and report it in Section 4
+```
+
+<!--
+=====================================================================
+READ ME FIRST (delete this block before submitting)
+=====================================================================
+1. DATA ACCESS. Download the 2024 ACS 1-year PUMS *person* files from
+   https://www.census.gov/programs-surveys/acs/microdata/access.html
+   (CSV, person records). Large files may be split (psam_pusa.csv,
+   psam_pusb.csv, ...); bind them. Do NOT commit raw data to your zip.
+2. DATA DICTIONARY. Every variable code below (MIL, PERNP, ADJINC, SCHL, ...)
+   should be VERIFIED against the 2024 PUMS data dictionary. Codes and
+   available variables change between years (e.g., check which period-of-
+   service flags MLPA-MLPK / VPS-style variables exist in 2024).
+   https://www2.census.gov/programs-surveys/acs/tech_docs/pums/data_dict/PUMS_Data_Dictionary_2024.pdf
+3. HOLDOUT HYGIENE. After Section 4, the holdout must not appear in your
+   working directory, your environment, or any AI chat/agent context.
+   The scaffold saves it OUTSIDE the project folder -- keep it that way.
+-->
+
+# 3. Dataset
+
+## 3(a) Loading raw data and defining one row
+Peek at one row of the full person ACS 1-Year PUMS
+```{r}
+pums_files <- c("/Users/gracekemmerenhendricks/Documents/Autumn 26/data/csv_pus/psam_pusa.csv",
+                "/Users/gracekemmerenhendricks/Documents/Autumn 26/data/csv_pus/psam_pusb.csv")
+
+peek <- read_csv(pums_files[1], n_max = 1, show_col_types = FALSE,
+                 col_types = cols(.default = col_character()))
+
+peek
+```
+One row = one person (one PUMS person record), uniquely identified by `SERIALNO` + `SPORDER`.
+
+```{r load-data}
+# OLD SELECTION OF VARS
+# person_vars <- c("RT", "SERIALNO",  "SPORDER", "DIVISION", "REGION", "STATE", "ADJINC",
+#                  "AGEP", "CIT", "DEAR", "DEYE", "MAR", "MIL", "MLPA", "MLPB", "MLPCD", "SEX",
+#                  "SCHL", "DIS", "DRAT", "MSP", "PAOC", "PINCP", "SCIENGRLP",
+#                  "RACAIAN", "RACASN", "RACBLK", "RACSOR", "RACWHT", "RACNH",
+#                  "RACPI", "RAC1P", "VPSP", "PERNP", "PWGTP", "HISP")
+
+# NEW SELECTIONF OF VARS: single race code, using PERNP, not PINCP
+person_vars <- c("RT", "SERIALNO", "ADJINC", "SPORDER", "PWGTP",
+                 "MIL", "VPSP",
+                 "STATE", "AGEP", "SEX", "RAC1P", "MAR", "PAOC",
+                 "CIT", "NATIVITY", "LANX", "ENG", "WAOB",
+                 "DIS", "DRAT", "DRATX", "DEAR", "DEYE", "DPHY", "DREM", "DDRS", "DOUT",
+                 "JWMNP", "WKHP", "WKWN",
+                 "SCHL", "FOD1P", "SCIENGRLP",
+                 "PERNP")
+
+
+pums_raw <- pums_files |>
+  map(~ read_csv(.x, show_col_types = FALSE,
+                 col_select = all_of(person_vars),
+                 col_types = cols(.default = col_character()))) |>
+  list_rbind()
+
+dim(pums_raw)
+
+```
+
+### Eligibility filters (definitional, NOT data-driven, so safe before the split)
+Veterans who are not currently on active duty or in Reserve/National Guard Status: `MIL` code 2 
+(verified in the data dictionary: 1 = now on active duty, 2 = active duty in the
+past but not now, 3 = only active duty for training in Reserves/National Guard, 4 = never served).
+'VPSP' code 01 
+(verified in the data dictionary: 01 = Gulf War: 9/2001 or later (Post 9/11)).
+Outcome `PERNP` is NA for people under 16, so those rows drop out too.
+```{r filter-veterans}
+vets <- pums_raw |>
+  filter(MIL == "2", VPSP =="01", 
+  !is.na(PERNP))
+```
+
+Convert numeric variables back from characters (from read_csv) and adjust income/earnings variables.
+```{r}
+vets <- vets |>
+  mutate(across(c(AGEP, PERNP), as.numeric),
+         ADJINC = as.numeric(ADJINC) / 1e6,
+         PERNP_adj = PERNP * ADJINC,
+         JWMNP = as.numeric(JWMNP),
+         WKHP = as.numeric(WKHP),
+         WKWN = as.numeric(WKWN))
+
+glimpse(vets)
+```
+```{r}
+# See example categorical breakdown for possible high proportion missing variables
+vets |> count(SCIENGRLP)
+vets |> count(PAOC)
+vets |> count(JWMNP)
+```
+Check against criteria (i)-(v):
+```{r criteria-check}
+# (i) rows and predictor count -- you'll finalize predictors in Section 6
+nrow(vets)
+
+# (v) missingness overview across ALL columns (just to see what's usable)
+vets |>
+  summarise(across(everything(), ~ mean(is.na(.x)))) |>
+  pivot_longer(everything(), names_to = "var", values_to = "prop_na") |>
+  filter(prop_na == 0)
+vets |>
+  summarise(across(everything(), ~ mean(is.na(.x)))) |>
+  pivot_longer(everything(), names_to = "var", values_to = "prop_na") |>
+  filter(prop_na > 0) |>
+  arrange(desc(prop_na))
+```
+## Impute NA with 0 for JWMNP, WKHP, WKWN by definition from Dictionary
+```{r}
+vets_filled <- vets |> 
+  mutate(across(c(JWMNP, WKHP, WKWN), ~ replace_na(as.numeric(.x), 0)))
+```
+
+**DONE (3a):** state criteria (i)-(v) are met. Think about (iv) independence:
+multiple veterans can share a household (`SERIALNO`). Is treating rows as
+independent reasonable? Do you want to address it (e.g., one person per
+household), or acknowledge it as a limitation? Either choice should be
+justified. Cite the Census Bureau as source and note PUMS is public-use.
+
+## 3(b) Why this dataset fits the stakeholder
+
+**TODO:** tie the veteran-only sample and available features to what a
+commander knows at the time of SkillBridge assessment.
+
+## 3(c) Remove duplicates
+
+```{r dedupe}
+# PUMS should be unique on SERIALNO + SPORDER; verify rather than assume
+vets_filled |> get_dupes(SERIALNO, SPORDER) |> nrow()
+
+n_before <- nrow(vets_filled)
+vets_filled <- vets_filled |> distinct(SERIALNO, SPORDER, .keep_all = TRUE)
+n_after <- nrow(vets_filled)
+c(before = n_before, after = n_after)
+```
+
+**DONE:** confirm in text that duplicates were removed (even if zero found).
+
+# 4. Holdout set
+
+Split BEFORE any exploration or preprocessing. If you decided to keep one
+person per household or to split by household, do that here.
+
+```{r holdout-split}
+set.seed(GLOBAL_SEED)
+
+# Simple random 80/20 split of persons.
+# NOTE: persons in the same household may land on both sides. Consider whether
+# that leaks information (e.g., spouses with correlated incomes) and whether
+# to split by SERIALNO instead (rsample::group_initial_split()).
+split <- initial_split(vets_filled, prop = 0.80)
+
+dev_raw     <- training(split)
+holdout_raw <- testing(split)
+
+c(total = nrow(vets_filled), development = nrow(dev_raw), holdout = nrow(holdout_raw))
+```
+
+Save the split. Store the holdout OUTSIDE the project directory so it cannot be
+swept into AI tool context or your code zip.
+
+```{r save-holdout}
+holdout_path <- "/Users/gracekemmerenhendricks/Documents/Autumn 26/data/holdout/holdout_raw.rds"
+dir.create(dirname(holdout_path), showWarnings = FALSE, recursive = TRUE)
+saveRDS(holdout_raw, holdout_path)
+
+dev_path <- "/Users/gracekemmerenhendricks/Documents/Autumn 26/data/dev/dev_raw.rds"
+dir.create(dirname(dev_path), showWarnings = FALSE, recursive = TRUE)
+saveRDS(dev_raw, dev_path)
+
+check_saved <- function(obj, path, label) {
+  if (!file.exists(path)) {
+    cat("FAILED:", label, "not found at", path, "\n")
+    return(invisible(FALSE))
+  }
+  back <- readRDS(path)
+  ok <- identical(obj, back)
+  if (ok) {
+    cat("OK:", label, "saved and verified --",
+        nrow(back), "rows,", ncol(back), "columns, at", path, "\n")
+  } else {
+    cat("WARNING:", label, "exists but does not match the object in memory:", path, "\n")
+  }
+  rm(back)
+  invisible(ok)
+}
+
+ok_holdout <- check_saved(holdout_raw, holdout_path, "holdout_raw.rds")
+ok_dev     <- check_saved(dev_raw,     dev_path,     "dev_raw.rds")
+
+# Safe-to-share record of the split (IDs only) -> can go in the code zip
+dev_raw |>
+  select(SERIALNO, SPORDER) |>
+  write_csv("dev_ids.csv")
+holdout_raw |>
+  select(SERIALNO, SPORDER) |>
+  write_csv("holdout_ids.csv")
+
+holdout_csv <- file.path(dirname(holdout_path), "holdout_raw.csv")
+dev_csv     <- file.path(dirname(dev_path),     "dev_raw.csv")
+
+write_csv(holdout_raw, holdout_csv)
+write_csv(dev_raw,     dev_csv)
+
+file.exists(holdout_csv)   # TRUE
+file.exists(dev_csv)       # TRUE
+
+# Remove the holdout from this R session so nothing downstream can touch it
+rm(holdout_raw, split, pums_raw, vets, vets_filled)
+invisible(gc())
+```
+
+**DONE (report):** seed, sample sizes, and how you kept holdout data away from
+yourself and any AI tool (e.g., stored outside project, removed from session,
+never pasted/uploaded).
