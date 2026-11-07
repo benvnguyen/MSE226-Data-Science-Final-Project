@@ -7,3 +7,8 @@ docs/
 
 # Temporary Files
 .Rhistory
+
+# Fitted models and run logs (large; regenerate by running the pipeline)
+Models/**/*.rds
+Models/**/*.pt
+Models/results/run_log.txt

@@ -1,0 +1,8 @@
+"Algorithm","Feature set","Settings tried","Selected","MAE","MAE_SE","RMSE","RMSE_SE","R2","Minutes","MAE gain vs baseline"
+"Baseline (training-fold median)","-","-","-",44053.5548193259,410.221527311039,74205.6884358992,1610.60249714358,-0.0287076176493914,0,0
+"Linear regression","small","1 (none (no tuning parameters))","-",39927.0651094394,339.349879755468,65887.4717573459,1580.37155603754,0.189296858157635,0.4,4126.48970988647
+"Random forest","small","16 (4 x 4 grid: mtry in {2..p}, min_n in {5, 20, 35, 50}; 500 trees)","mtry=2, min_n=20",39230.4138230935,352.013363703927,64712.7615677539,1614.69976105347,0.218166258577753,16.5,4823.14099623242
+"Neural network (1 hidden layer)","small","9 (3 x 3 grid: hidden units {4, 8, 12} x weight decay {0.1, 1, 5}; 500 iterations)","hidden_units=4, penalty=5",40505.6177494503,348.714075341282,66198.0207628399,1535.40320001343,0.181510556698203,32.5,3547.93706987557
+"Linear regression","large","1 (none (no tuning parameters))","-",32796.1554861458,337.435080183611,59299.8452804756,1634.22754685696,0.343966963690737,0.1,11257.3993331801
+"Random forest","large","16 (4 x 4 grid: mtry in {2..p}, min_n in {5, 20, 35, 50}; 500 trees)","mtry=5, min_n=50",28557.0158438396,293.96762169968,57217.399917605,1584.7843608246,0.389204944361454,22.6,15496.5389754863
+"Neural network (1 hidden layer)","large","9 (3 x 3 grid: hidden units {4, 8, 12} x weight decay {0.1, 1, 5}; 500 iterations)","hidden_units=4, penalty=5",29951.6210168372,320.508530375318,58645.3361085506,1598.36947584799,0.358146512859417,35.9,14101.9338024887

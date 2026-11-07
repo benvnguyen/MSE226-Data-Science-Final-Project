@@ -13,7 +13,7 @@
 library(ggplot2)
 library(scales)
 
-d <- readRDS("dev_raw.rds")
+d <- readRDS("data/dev_raw.rds")
 stopifnot(nrow(d) == 23233)            # guard: make sure this is the dev file
 y <- d$PERNP_adj
 
