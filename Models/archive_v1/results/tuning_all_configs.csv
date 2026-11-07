@@ -1,0 +1,157 @@
+"algorithm","feature_set","mtry","min_n","hidden_units","penalty",".metric","mean","std_err","n"
+"Linear regression","small",NA,NA,NA,NA,"mae",39927.0651094394,339.349879755468,10
+"Linear regression","small",NA,NA,NA,NA,"rmse",65887.4717573459,1580.37155603754,10
+"Linear regression","small",NA,NA,NA,NA,"rsq_trad",0.189296858157635,0.00936118877437639,10
+"Random forest","small",2,5,NA,NA,"mae",39250.482245678,341.144087741858,10
+"Random forest","small",2,5,NA,NA,"rmse",64646.7599452601,1612.15317454085,10
+"Random forest","small",2,5,NA,NA,"rsq_trad",0.219679796827553,0.0104009398841239,10
+"Random forest","small",2,20,NA,NA,"mae",39230.4138230935,352.013363703927,10
+"Random forest","small",2,20,NA,NA,"rmse",64712.7615677539,1614.69976105347,10
+"Random forest","small",2,20,NA,NA,"rsq_trad",0.218166258577753,0.00980420920646059,10
+"Random forest","small",2,35,NA,NA,"mae",39232.588126052,347.459026844561,10
+"Random forest","small",2,35,NA,NA,"rmse",64784.2420415032,1608.5409275239,10
+"Random forest","small",2,35,NA,NA,"rsq_trad",0.21643607674734,0.00946128047006498,10
+"Random forest","small",2,50,NA,NA,"mae",39245.3725034086,346.445290903165,10
+"Random forest","small",2,50,NA,NA,"rmse",64890.8089520983,1605.78961161625,10
+"Random forest","small",2,50,NA,NA,"rsq_trad",0.213872079087497,0.00908560989340471,10
+"Random forest","small",4,5,NA,NA,"mae",40583.1706536839,366.793335265864,10
+"Random forest","small",4,5,NA,NA,"rmse",66222.0845695937,1557.01102746161,10
+"Random forest","small",4,5,NA,NA,"rsq_trad",0.180573093293032,0.0118100096463052,10
+"Random forest","small",4,20,NA,NA,"mae",39765.6332648278,347.387347792738,10
+"Random forest","small",4,20,NA,NA,"rmse",65184.1098575993,1584.03848748023,10
+"Random forest","small",4,20,NA,NA,"rsq_trad",0.206391234373735,0.0109133600652162,10
+"Random forest","small",4,35,NA,NA,"mae",39527.1320015795,346.492151949977,10
+"Random forest","small",4,35,NA,NA,"rmse",64972.7587998235,1589.25592379286,10
+"Random forest","small",4,35,NA,NA,"rsq_trad",0.211617289171776,0.0105920880677449,10
+"Random forest","small",4,50,NA,NA,"mae",39404.3571104744,349.382338668035,10
+"Random forest","small",4,50,NA,NA,"rmse",64880.172632315,1587.5001076563,10
+"Random forest","small",4,50,NA,NA,"rsq_trad",0.213897772428681,0.0103196917622397,10
+"Random forest","small",6,5,NA,NA,"mae",41771.8890333153,373.539459459535,10
+"Random forest","small",6,5,NA,NA,"rmse",67774.7509103424,1526.69220961082,10
+"Random forest","small",6,5,NA,NA,"rsq_trad",0.14142247513326,0.0119181161720954,10
+"Random forest","small",6,20,NA,NA,"mae",40256.560832426,358.011994947932,10
+"Random forest","small",6,20,NA,NA,"rmse",65797.2855522922,1576.39508171735,10
+"Random forest","small",6,20,NA,NA,"rsq_trad",0.191244849329621,0.011423151149136,10
+"Random forest","small",6,35,NA,NA,"mae",39842.3939617323,352.49248920899,10
+"Random forest","small",6,35,NA,NA,"rmse",65336.284207643,1582.30248532079,10
+"Random forest","small",6,35,NA,NA,"rsq_trad",0.202624580294456,0.0112953307861655,10
+"Random forest","small",6,50,NA,NA,"mae",39648.3890543812,351.235402078528,10
+"Random forest","small",6,50,NA,NA,"rmse",65175.5636805926,1576.98564769833,10
+"Random forest","small",6,50,NA,NA,"rsq_trad",0.206598891317144,0.0107228891526119,10
+"Random forest","small",8,5,NA,NA,"mae",42432.9686248733,387.488284441037,10
+"Random forest","small",8,5,NA,NA,"rmse",68774.5525100459,1510.08939242807,10
+"Random forest","small",8,5,NA,NA,"rsq_trad",0.115774287927422,0.0117251589200244,10
+"Random forest","small",8,20,NA,NA,"mae",40587.0993355398,361.484348916682,10
+"Random forest","small",8,20,NA,NA,"rmse",66235.5042339922,1564.95685662743,10
+"Random forest","small",8,20,NA,NA,"rsq_trad",0.180328183607599,0.0114971717879145,10
+"Random forest","small",8,35,NA,NA,"mae",40091.5165794384,356.21136788167,10
+"Random forest","small",8,35,NA,NA,"rmse",65723.8578746543,1573.06308921617,10
+"Random forest","small",8,35,NA,NA,"rsq_trad",0.193049729235546,0.0113412312700835,10
+"Random forest","small",8,50,NA,NA,"mae",39837.3113384722,355.204942888564,10
+"Random forest","small",8,50,NA,NA,"rmse",65454.6504471791,1577.02320837001,10
+"Random forest","small",8,50,NA,NA,"rsq_trad",0.199716219882724,0.0111335044686028,10
+"Neural network (1 hidden layer)","small",NA,NA,4,0.1,"mae",40933.0641678068,319.81677110077,10
+"Neural network (1 hidden layer)","small",NA,NA,4,0.1,"rmse",66690.717652666,1514.41286956984,10
+"Neural network (1 hidden layer)","small",NA,NA,4,0.1,"rsq_trad",0.16877654051251,0.0113874626985539,10
+"Neural network (1 hidden layer)","small",NA,NA,4,1,"mae",40706.5212570102,371.009017020064,10
+"Neural network (1 hidden layer)","small",NA,NA,4,1,"rmse",66552.8166962401,1627.94241659055,10
+"Neural network (1 hidden layer)","small",NA,NA,4,1,"rsq_trad",0.17278113440804,0.0117022239946463,10
+"Neural network (1 hidden layer)","small",NA,NA,4,5,"mae",40505.6177494503,348.714075341282,10
+"Neural network (1 hidden layer)","small",NA,NA,4,5,"rmse",66198.0207628399,1535.40320001343,10
+"Neural network (1 hidden layer)","small",NA,NA,4,5,"rsq_trad",0.181510556698203,0.00798988968751038,10
+"Neural network (1 hidden layer)","small",NA,NA,8,0.1,"mae",41701.1311512921,356.648309386806,10
+"Neural network (1 hidden layer)","small",NA,NA,8,0.1,"rmse",68001.8051438561,1596.39267298075,10
+"Neural network (1 hidden layer)","small",NA,NA,8,0.1,"rsq_trad",0.13632788338388,0.00910970006536549,10
+"Neural network (1 hidden layer)","small",NA,NA,8,1,"mae",41310.1661704717,358.339535179822,10
+"Neural network (1 hidden layer)","small",NA,NA,8,1,"rmse",67721.8331314229,1583.27736841655,10
+"Neural network (1 hidden layer)","small",NA,NA,8,1,"rsq_trad",0.142758935846445,0.0140670490493287,10
+"Neural network (1 hidden layer)","small",NA,NA,8,5,"mae",41262.3462010313,323.57000085761,10
+"Neural network (1 hidden layer)","small",NA,NA,8,5,"rmse",67331.0326924609,1476.5539021114,10
+"Neural network (1 hidden layer)","small",NA,NA,8,5,"rsq_trad",0.152787216640872,0.00841038966722678,10
+"Neural network (1 hidden layer)","small",NA,NA,12,0.1,"mae",42205.1001387598,382.828038333208,10
+"Neural network (1 hidden layer)","small",NA,NA,12,0.1,"rmse",67871.100344036,1582.289596211,10
+"Neural network (1 hidden layer)","small",NA,NA,12,0.1,"rsq_trad",0.13943363337042,0.0104191116036065,10
+"Neural network (1 hidden layer)","small",NA,NA,12,1,"mae",42140.9399475693,383.685111434164,10
+"Neural network (1 hidden layer)","small",NA,NA,12,1,"rmse",67508.4316616347,1600.39689916049,10
+"Neural network (1 hidden layer)","small",NA,NA,12,1,"rsq_trad",0.14881155995693,0.00986549585948089,10
+"Neural network (1 hidden layer)","small",NA,NA,12,5,"mae",41627.0797157308,356.25898880783,10
+"Neural network (1 hidden layer)","small",NA,NA,12,5,"rmse",67036.4489549948,1633.75478748779,10
+"Neural network (1 hidden layer)","small",NA,NA,12,5,"rsq_trad",0.160836416420054,0.0103386199121915,10
+"Linear regression","large",NA,NA,NA,NA,"mae",32796.1554861458,337.435080183611,10
+"Linear regression","large",NA,NA,NA,NA,"rmse",59299.8452804756,1634.22754685696,10
+"Linear regression","large",NA,NA,NA,NA,"rsq_trad",0.343966963690737,0.0106041496653623,10
+"Random forest","large",2,5,NA,NA,"mae",28638.0956622504,289.131510741463,10
+"Random forest","large",2,5,NA,NA,"rmse",57018.6683532843,1645.16675401619,10
+"Random forest","large",2,5,NA,NA,"rsq_trad",0.393735864359478,0.0105015793311501,10
+"Random forest","large",2,20,NA,NA,"mae",28623.5085258224,299.869832321192,10
+"Random forest","large",2,20,NA,NA,"rmse",57090.5831613164,1663.2652793476,10
+"Random forest","large",2,20,NA,NA,"rsq_trad",0.392259895228797,0.0107133890033805,10
+"Random forest","large",2,35,NA,NA,"mae",28633.6104735329,300.313147396922,10
+"Random forest","large",2,35,NA,NA,"rmse",57170.3930158744,1673.29044039475,10
+"Random forest","large",2,35,NA,NA,"rsq_trad",0.390577737750111,0.0108876453912693,10
+"Random forest","large",2,50,NA,NA,"mae",28675.8906575592,300.968008276503,10
+"Random forest","large",2,50,NA,NA,"rmse",57254.0725335981,1673.14521205145,10
+"Random forest","large",2,50,NA,NA,"rsq_trad",0.38880367660149,0.0107573271824843,10
+"Random forest","large",5,5,NA,NA,"mae",29410.1144427105,271.062385033551,10
+"Random forest","large",5,5,NA,NA,"rmse",58010.7926881349,1470.98068510145,10
+"Random forest","large",5,5,NA,NA,"rsq_trad",0.371747013992506,0.00867161919726118,10
+"Random forest","large",5,20,NA,NA,"mae",28853.1282343361,288.599114790738,10
+"Random forest","large",5,20,NA,NA,"rmse",57399.8879982351,1538.92234956868,10
+"Random forest","large",5,20,NA,NA,"rsq_trad",0.385168004825275,0.00964118868381987,10
+"Random forest","large",5,35,NA,NA,"mae",28635.1760621603,288.69875482713,10
+"Random forest","large",5,35,NA,NA,"rmse",57245.0063805949,1561.16576408128,10
+"Random forest","large",5,35,NA,NA,"rsq_trad",0.388562266906411,0.00992979455148576,10
+"Random forest","large",5,50,NA,NA,"mae",28557.0158438396,293.96762169968,10
+"Random forest","large",5,50,NA,NA,"rmse",57217.399917605,1584.7843608246,10
+"Random forest","large",5,50,NA,NA,"rsq_trad",0.389204944361454,0.01039596407866,10
+"Random forest","large",8,5,NA,NA,"mae",30024.8338244801,275.946023272505,10
+"Random forest","large",8,5,NA,NA,"rmse",58852.6031879628,1406.14993568533,10
+"Random forest","large",8,5,NA,NA,"rsq_trad",0.353017788006282,0.0086710445794056,10
+"Random forest","large",8,20,NA,NA,"mae",29231.4820633832,291.289190263514,10
+"Random forest","large",8,20,NA,NA,"rmse",57889.5566322626,1502.31562795759,10
+"Random forest","large",8,20,NA,NA,"rsq_trad",0.374380988665243,0.00991504472986747,10
+"Random forest","large",8,35,NA,NA,"mae",28906.8860413339,294.340351105769,10
+"Random forest","large",8,35,NA,NA,"rmse",57576.1353293296,1527.28098213852,10
+"Random forest","large",8,35,NA,NA,"rsq_trad",0.381267148191954,0.0100062347926074,10
+"Random forest","large",8,50,NA,NA,"mae",28753.8027675939,296.348779935685,10
+"Random forest","large",8,50,NA,NA,"rmse",57444.7815990731,1549.53293705855,10
+"Random forest","large",8,50,NA,NA,"rsq_trad",0.384148212686768,0.0104133333333617,10
+"Random forest","large",11,5,NA,NA,"mae",30435.9644840993,276.124926262485,10
+"Random forest","large",11,5,NA,NA,"rmse",59458.6050388363,1359.40422493548,10
+"Random forest","large",11,5,NA,NA,"rsq_trad",0.339299614394331,0.00918597031850292,10
+"Random forest","large",11,20,NA,NA,"mae",29515.8161441474,274.686064652407,10
+"Random forest","large",11,20,NA,NA,"rmse",58297.7586086444,1446.12431585053,10
+"Random forest","large",11,20,NA,NA,"rsq_trad",0.365273274973274,0.00953991977687619,10
+"Random forest","large",11,35,NA,NA,"mae",29130.4072398853,276.699810044601,10
+"Random forest","large",11,35,NA,NA,"rmse",57906.0094263719,1478.85548148031,10
+"Random forest","large",11,35,NA,NA,"rsq_trad",0.373905647230749,0.00993876585736574,10
+"Random forest","large",11,50,NA,NA,"mae",28942.7202926163,280.111806615778,10
+"Random forest","large",11,50,NA,NA,"rmse",57706.9120085361,1496.49870225319,10
+"Random forest","large",11,50,NA,NA,"rsq_trad",0.378296651487851,0.0099801333880251,10
+"Neural network (1 hidden layer)","large",NA,NA,4,0.1,"mae",30117.9513847259,345.39528817979,10
+"Neural network (1 hidden layer)","large",NA,NA,4,0.1,"rmse",58488.7886876801,1614.86095093574,10
+"Neural network (1 hidden layer)","large",NA,NA,4,0.1,"rsq_trad",0.361536501357064,0.0120392124651757,10
+"Neural network (1 hidden layer)","large",NA,NA,4,1,"mae",29971.8677145863,398.678114794808,10
+"Neural network (1 hidden layer)","large",NA,NA,4,1,"rmse",58420.1444743741,1642.08359179931,10
+"Neural network (1 hidden layer)","large",NA,NA,4,1,"rsq_trad",0.36314602019814,0.0123304909296101,10
+"Neural network (1 hidden layer)","large",NA,NA,4,5,"mae",29951.6210168372,320.508530375318,10
+"Neural network (1 hidden layer)","large",NA,NA,4,5,"rmse",58645.3361085506,1598.36947584799,10
+"Neural network (1 hidden layer)","large",NA,NA,4,5,"rsq_trad",0.358146512859417,0.0113188868727691,10
+"Neural network (1 hidden layer)","large",NA,NA,8,0.1,"mae",31648.5362617386,433.665616300137,10
+"Neural network (1 hidden layer)","large",NA,NA,8,0.1,"rmse",60911.203747514,1888.05327430994,10
+"Neural network (1 hidden layer)","large",NA,NA,8,0.1,"rsq_trad",0.307487828315063,0.0188077121668791,10
+"Neural network (1 hidden layer)","large",NA,NA,8,1,"mae",31424.9833913266,405.514351434185,10
+"Neural network (1 hidden layer)","large",NA,NA,8,1,"rmse",60483.4089812183,1641.57648297381,10
+"Neural network (1 hidden layer)","large",NA,NA,8,1,"rsq_trad",0.317115323211634,0.0131275041099006,10
+"Neural network (1 hidden layer)","large",NA,NA,8,5,"mae",30601.5555588113,277.415857404588,10
+"Neural network (1 hidden layer)","large",NA,NA,8,5,"rmse",59234.0382073557,1525.76472798313,10
+"Neural network (1 hidden layer)","large",NA,NA,8,5,"rsq_trad",0.344903847284588,0.010565193899892,10
+"Neural network (1 hidden layer)","large",NA,NA,12,0.1,"mae",33696.2412620145,307.050119008401,10
+"Neural network (1 hidden layer)","large",NA,NA,12,0.1,"rmse",60839.02256059,1455.01824907294,10
+"Neural network (1 hidden layer)","large",NA,NA,12,0.1,"rsq_trad",0.308793471330682,0.00759757000045957,10
+"Neural network (1 hidden layer)","large",NA,NA,12,1,"mae",32908.7109134977,290.855966611537,10
+"Neural network (1 hidden layer)","large",NA,NA,12,1,"rmse",60236.4310137392,1520.85343506243,10
+"Neural network (1 hidden layer)","large",NA,NA,12,1,"rsq_trad",0.32254753909676,0.00979978676589138,10
+"Neural network (1 hidden layer)","large",NA,NA,12,5,"mae",31808.2138279341,337.704092416511,10
+"Neural network (1 hidden layer)","large",NA,NA,12,5,"rmse",59508.4802590463,1679.5357459297,10
+"Neural network (1 hidden layer)","large",NA,NA,12,5,"rsq_trad",0.339339703225276,0.0122343456003265,10
