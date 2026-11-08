@@ -1,0 +1,8 @@
+# Data stays local: never commit raw data, the dev split, or the holdout
+*.csv
+*.rds
+
+# R session files
+.RData
+.Rhistory
+.Rproj.user/
