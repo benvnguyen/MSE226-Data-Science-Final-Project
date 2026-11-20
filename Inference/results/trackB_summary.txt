@@ -1,0 +1,66 @@
+TRACK B SUMMARY (development data only)
+n = 23233 veterans in 22469 households; 87 slope coefficients; R^2 = 0.201
+Significance level alpha = 0.05; bootstrap B = 2000, seed = 32, unit = household
+
+3(a) Significant slopes (p < alpha):
+  conventional SEs: 45 of 87
+  HC3 robust SEs:   47 of 87
+
+3(c) Bootstrap vs. regression-output intervals:
+  bootstrap percentile CI excludes 0: 47 of 87
+  ratio of bootstrap SE to conventional SE (min, 25%, median, 75%, max):
+    0.54, 0.85, 0.97, 1.15, 2.12
+  ratio of bootstrap SE to HC3 SE (min, 25%, median, 75%, max):
+    0.94, 0.99, 1, 1.01, 1.04
+  resamples with an absent level (max over coefficients): 0
+  significance differs, conventional vs. bootstrap:
+  Race = Alaska Native
+  State = KS
+  State = MO
+  State = OK
+  significance differs, HC3 vs. bootstrap:
+  State = DC
+  State = KS
+
+3(d) Multiple testing on HC3 p-values (m = 87 tests):
+  Bonferroni cutoff alpha/m = 0.000575
+  significant: unadjusted 47, Bonferroni 24, Benjamini-Hochberg 43
+  lose significance under Bonferroni:
+  Race = Alaska Native
+  Race = Asian
+  VA rating = 10-20%
+  State = AL
+  State = AR
+  State = CA
+  State = CO
+  State = FL
+  State = IN
+  State = KS
+  State = LA
+  State = MA
+  State = MI
+  State = MO
+  State = NJ
+  State = OK
+  State = UT
+  State = WA
+  Field of degree = Life & physical sciences
+  Field of degree = Agriculture & environment
+  Field of degree = Criminal justice, law & military
+  Field of degree = Humanities
+  Field of degree = Applied & service fields
+  lose significance under Benjamini-Hochberg:
+  State = KS
+  State = OK
+  State = UT
+  Field of degree = Humanities
+
+Significant slopes by variable (HC3 / Bonferroni / BH, out of n):
+  Age               1 of  1 /  1 /  1
+  Sex               1 of  1 /  1 /  1
+  Race              6 of  8 /  4 /  6
+  Marital status    4 of  4 /  4 /  4
+  VA rating         2 of  6 /  1 /  2
+  Education         4 of  5 /  4 /  4
+  State            19 of 50 /  4 / 16
+  Field of degree  10 of 12 /  5 /  9
