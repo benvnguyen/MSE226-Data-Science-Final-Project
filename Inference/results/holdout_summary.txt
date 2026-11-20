@@ -1,0 +1,88 @@
+TRACK B 3(b) SUMMARY: locked model fit on the holdout
+Holdout: 5809 veterans in 5756 households; 5809 used in the fit; R^2 = 0.240
+Not estimable (fewer than 2 holdout veterans): none
+
+Significant at 0.05 (HC3): development 47 of 87; holdout 25 of 87 estimable
+  significant in both: 22 | development only: 25 | holdout only: 3 | neither: 37
+  ratio of holdout SE to development SE (min, 25%, median, 75%, max):
+    0.79, 1.72, 1.94, 2.19, 7.57
+
+Differences larger than the combined uncertainty (|z_diff| > 1.96): 1 of 87
+  (about 4 would exceed this by chance alone)
+  coefficients:
+  Field of degree = Life & physical sciences
+Sign changes:
+  Race = AIAN, tribe unspecified
+  Race = Asian
+  VA rating = 0%
+  State = AK
+  State = AZ
+  State = FL
+  State = ID
+  State = IN
+  State = IA
+  State = KS
+  State = ME
+  State = MS
+  State = NE
+  State = NM
+  State = NY
+  State = NC
+  State = ND
+  State = OH
+  State = OR
+  State = VT
+  Field of degree = Applied & service fields
+Significant in development only:
+  Race = Alaska Native
+  Race = Asian
+  Race = Other race
+  Race = Two or more races
+  VA rating = 10-20%
+  State = AL
+  State = CA
+  State = CO
+  State = FL
+  State = IN
+  State = KS
+  State = LA
+  State = MA
+  State = MI
+  State = MS
+  State = MO
+  State = NJ
+  State = UT
+  State = WA
+  State = WV
+  Field of degree = Computing, math & data
+  Field of degree = Agriculture & environment
+  Field of degree = Psychology & social services
+  Field of degree = Humanities
+  Field of degree = Applied & service fields
+Significant in holdout only:
+  Education = No HS diploma
+  State = SD
+  State = TN
+
+Key coefficients ($ thousands; HC3 95% CIs):
+  Age = per 10 years                     dev     3.2 [    2.2,     4.3]   holdout     4.1 [    2.1,     6.1]   z_diff  0.75
+  Sex = Female                           dev   -21.3 [  -23.5,   -19.0]   holdout   -23.2 [  -27.5,   -18.8]   z_diff -0.77
+  VA rating = 0%                         dev     3.8 [   -4.4,    12.0]   holdout    -3.2 [  -15.0,     8.7]   z_diff -0.95
+  VA rating = 10-20%                     dev     5.7 [    1.3,    10.0]   holdout     4.0 [   -4.5,    12.4]   z_diff -0.35
+  VA rating = 30-40%                     dev     0.7 [   -3.3,     4.7]   holdout     1.4 [   -7.5,    10.3]   z_diff  0.15
+  VA rating = 50-60%                     dev     2.6 [   -1.6,     6.9]   holdout     0.1 [   -7.9,     8.1]   z_diff -0.55
+  VA rating = 70-100%                    dev   -15.0 [  -17.0,   -13.1]   holdout   -16.9 [  -20.8,   -13.0]   z_diff -0.85
+  VA rating = Not reported               dev    -4.8 [  -11.4,     1.8]   holdout    -9.2 [  -19.0,     0.6]   z_diff -0.73
+  Education = No HS diploma              dev    -5.3 [  -10.7,     0.1]   holdout   -12.6 [  -20.6,    -4.7]   z_diff -1.50
+  Education = Some college/associate     dev     7.5 [    5.8,     9.1]   holdout     4.5 [    1.3,     7.7]   z_diff -1.60
+  Education = Bachelor's                 dev    32.6 [   28.3,    37.0]   holdout    27.9 [   20.3,    35.5]   z_diff -1.06
+  Education = Master's                   dev    58.3 [   52.8,    63.8]   holdout    51.0 [   40.9,    61.1]   z_diff -1.24
+  Education = Prof./doctorate            dev   115.6 [  102.5,   128.7]   holdout   117.7 [   90.9,   144.4]   z_diff  0.13
+
+Robustness: 335 holdout veterans in 334 households share a household with development veterans
+  refit without them: 26 of 87 estimable coefficients significant
+  largest change in a key coefficient: 3.5 thousand
+  significance changes vs. the full holdout fit:
+  State = AL
+  Field of degree = Computing, math & data
+  Field of degree = Education
